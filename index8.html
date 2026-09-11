@@ -3047,46 +3047,10 @@ function maybeEvent(next){
       <b>${o.l}</b><span>영향: ${o.h}</span></button>`).join('')}`;
   window.__evNext=next; go('s-event');
 }
-/* 같은 선택도 매번 같은 결과가 되지는 않는다.
-   결과의 크기와 방향에 폭을 주고, 드물게 판이 뒤집히는 일도 생긴다. */
-const OUT_TIER=[
-  {n:'뜻대로 됐다',   c:'var(--gold)',     m:1.60, p:8,  d:'기대보다 훨씬 잘 풀렸습니다.'},
-  {n:'잘 풀렸다',     c:'var(--blue)',     m:1.22, p:20, d:'생각한 대로 됐습니다.'},
-  {n:'그럭저럭',      c:'var(--ink)',      m:1.00, p:46, d:''},
-  {n:'시원치 않았다', c:'var(--ink-soft)', m:0.55, p:18, d:'해보긴 했는데 남은 게 적습니다.'},
-  {n:'어긋났다',      c:'var(--red)',      m:-0.35,p:8,  d:'하려던 것과 반대로 흘렀습니다.'}
-];
-function rollOutcome(risk){
-  // 안정적인 선택은 가운데로, 도박은 양끝으로 벌어진다
-  const d=OUT_TIER.map(x=>x.p);
-  if(risk==='safe'){ d[2]+=14; d[0]-=3; d[4]-=6; d[3]-=5; }
-  if(risk==='gamble'){ d[0]+=9; d[4]+=8; d[2]-=17; }
-  if((P.form||1)>=1.15){ d[0]+=5; d[4]-=4; }
-  if((P.form||1)<=0.85){ d[4]+=5; d[0]-=4; }
-  if(flag('disasterHalf')) { const mv=Math.min(d[4],5); d[4]-=mv; d[3]+=mv; }
-  const tot=d.reduce((a,b)=>a+Math.max(0,b),0);
-  let r=Math.random()*tot;
-  for(let i=0;i<d.length;i++){ r-=Math.max(0,d[i]); if(r<=0) return i; }
-  return 2;
-}
+/* 선택의 결과는 숫자만이 아니다.
+   특성이 붙기도, 유물이 남기도, 몸이 상하기도, 자리가 바뀌기도 한다. */
 function chooseEvent(ei,oi){
-  const e=window.__evCur||EVENTS[ei], opt=e.o[oi];
-  const base=opt.f(P);
-  // 선택지 성격 — 문구에 '?'가 있으면 도박, '안정/회복'이면 안전
-  const hint=(opt.h||'');
-  const risk = /\?|위험|도박/.test(hint) ? 'gamble'
-             : /안정|회복|관리|유지/.test(hint) ? 'safe' : 'normal';
-  const ti=rollOutcome(risk), T=OUT_TIER[ti];
-  const r=Object.assign({}, base);
-  // 수치에 배수를 먹인다. '어긋났다'면 이득이 손해로 뒤집힌다
-  ['gp','rep','trust','card','pot'].forEach(k=>{ if(r[k]) r[k]=Math.round(r[k]*T.m*10)/10; });
-  if(r.inj) r.inj = T.m<0 ? Math.abs(r.inj)*1.3 : Math.round(r.inj*(T.m>1?1:T.m)*10)/10;
-  if(r.stat){ const st={}; for(const k in r.stat) st[k]=Math.round(r.stat[k]*T.m*10)/10; r.stat=st; }
-  if(r.form) r.form = 1+(r.form-1)*Math.max(T.m,-0.5);
-  if(r.salary) r.salary = 1+(r.salary-1)*Math.max(T.m,0);
-  if(T.m<0){ r.miss=null; }                       // 결장까지 겹치면 가혹하다
-  if(ti===0 && !r.relic) r.relic=0.10;            // 최상 결과엔 드물게 유물
-  if(ti===0 && !r.trait && Math.random()<0.12) r.trait=true;
+  const e=window.__evCur||EVENTS[ei], r=e.o[oi].f(P);
   const extra=[];
 
   if(r.gp)   P.growthPts=Math.max(0,Math.round((P.growthPts+r.gp)*10)/10);
@@ -3135,10 +3099,8 @@ function chooseEvent(ei,oi){
     ? `offerRelics(window.__evNext||renderOffseason,{from:'${(e.t||'').replace(/'/g,'')}',lucky:false,n:3,title:'몸이 달라졌다',lede:'그 일이 무언가를 남겼습니다.'})`
     : `(window.__evNext||renderOffseason)()`;
   document.getElementById('ev-body').innerHTML=`
-    <p class="eyebrow">결과</p>
-    <h2 class="title" style="color:${T.c}">${e.t}</h2>
-    <p class="lede" style="color:${T.c};font-weight:700">${T.n}</p>
-    <div class="note ${(r.inj>0||r.miss||T.m<0)?'red':''}">${r.msg}${T.d?'<br>'+T.d:''}</div>
+    <p class="eyebrow">결과</p><h2 class="title">${e.t}</h2>
+    <div class="note ${(r.inj>0||r.miss)?'red':''}">${r.msg}</div>
     <div class="sheet"><div class="bd">
       ${r.gp?`<div class="stub"><b>성장 포인트</b><span class="num">${r.gp>0?'+':''}${r.gp}</span></div>`:''}
       ${r.inj?`<div class="stub"><b>부상 위험</b><span class="num">${r.inj>0?'+':''}${r.inj}</span></div>`:''}
@@ -4210,23 +4172,15 @@ function maybeRivalEvent(next){
   go('s-event');
 }
 function chooseRival(i){
-  const e=window.__rvEv, opt=e.o[i], base=opt.f();
-  const hint=(opt.h||'');
-  const risk=/\?|부담|부상/.test(hint)?'gamble':/안정|회복/.test(hint)?'safe':'normal';
-  const ti=rollOutcome(risk), T=OUT_TIER[ti];
-  const r=Object.assign({}, base);
-  ['gp','rep','trust'].forEach(k=>{ if(r[k]) r[k]=Math.round(r[k]*T.m*10)/10; });
-  if(r.inj) r.inj = T.m<0 ? Math.abs(r.inj)*1.3 : Math.round(r.inj*(T.m>1?1:T.m)*10)/10;
+  const e=window.__rvEv, r=e.o[i].f();
   if(r.gp)   P.growthPts=Math.max(0,Math.round(((P.growthPts||0)+r.gp)*10)/10);
   if(r.inj)  P.injury=clamp(P.injury+r.inj,0,60);
   if(r.rep)  P.rep=clamp(P.rep+r.rep,0,100);
   if(r.trust)P.trust=clamp(P.trust+r.trust,0,100);
   save();
   document.getElementById('ev-body').innerHTML=`
-    <p class="eyebrow">결과</p>
-    <h2 class="title" style="color:${T.c}">${e.t}</h2>
-    <p class="lede" style="color:${T.c};font-weight:700">${T.n}</p>
-    <div class="note ${T.m<0?'red':''}">${r.msg}${T.d?'<br>'+T.d:''}</div>
+    <p class="eyebrow">결과</p><h2 class="title">${e.t}</h2>
+    <div class="note">${r.msg}</div>
     <div class="sheet"><div class="bd">
       ${r.gp?`<div class="stub"><b>성장 포인트</b><span class="num">${r.gp>0?'+':''}${r.gp}</span></div>`:''}
       ${r.inj?`<div class="stub"><b>부상 위험</b><span class="num">${r.inj>0?'+':''}${r.inj}</span></div>`:''}
@@ -5871,74 +5825,39 @@ function renderAch(){
    15. 기록실
    ═══════════════════════════════════════════════════════════ */
 function renderHall(){
-  let raw=[];
-  try{ raw=hall()||[] }catch(e){ raw=[] }
-  raw=raw.filter(r=>r && typeof r==='object');
-  let fix=false;
+  let raw=hall(), fix=false;
   raw.forEach((r,i)=>{ if(!r.id){ r.id='p_old'+i; fix=true } });
   if(fix){ try{localStorage.setItem(KEY_HALL,JSON.stringify(raw))}catch(e){} }
   const h=[...raw].sort((a,b)=>lgTotal(b)-lgTotal(a));
-  const body=document.getElementById('hall-body');
-  if(!body) return;
-
-  /* 오래된 기록에는 없는 항목이 있다. 하나라도 비면 화면 전체가 죽으므로
-     모든 값을 안전하게 꺼낸다. */
-  const teamName=t=>{ const x=(GAME.teams||[])[t]; return x? x.s : '—' };
-  const num=(v,d)=>typeof v==='number'&&isFinite(v)? v : (d||0);
-  const line=r=>{
-    const c=r.career||{};
-    if(r.type==='pitcher')
-      return `${num(c.w)}승 · ${num(c.so)}K · ERA ${num(c.era).toFixed(2)}`;
-    return `${num(c.h)}안타 · ${num(c.hr)}홈런 · ${fmtAvg(num(c.avg))}`;
-  };
-  const card=(r,i)=>{
-    try{
-      return `<div class="sheet"><div class="bd">
+  document.getElementById('hall-body').innerHTML = h.length? `
+    <p class="eyebrow">${h.length}명 등재</p>
+    <h2 class="title">명부</h2>
+    ${h.map((r,i)=>`<div class="sheet"><div class="bd">
       <div style="display:flex;align-items:baseline;gap:8px">
         <span class="num" style="color:var(--ink-soft);font-size:13px">${i+1}</span>
-        <b style="font-size:19px;font-weight:800">${r.name||'이름 없음'}</b>
-        <span style="font-size:12px;color:var(--ink-soft)">${r.pos||'—'} · ${r.arche||'—'}</span>
+        <b style="font-size:19px;font-weight:800">${r.name}</b>
+        <span style="font-size:12px;color:var(--ink-soft)">${r.pos} · ${r.arche}</span>
         <span class="num" style="margin-left:auto;font-size:20px;font-weight:800">${lgTotal(r).toLocaleString()}</span>
       </div>
       <div style="display:flex;gap:7px;align-items:center;margin-top:7px">
         <span class="grade g-${lgGrade(r)}">${lgGrade(r)}</span>
         <span style="font-size:12px;color:var(--ink-soft)">
-          ${teamName(r.team)} · ${r.from||'?'}–${r.to||'?'} · ${num(r.years)}시즌
+          ${GAME.teams[r.team].s} · ${r.from}–${r.to} · ${r.years}시즌
           ${r.numberRetired?' · 영구결번':''}</span>
       </div>
       <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
       <div style="font-size:12.5px;color:var(--ink-soft);flex:1">
-        ${line(r)}
-        ${r.war!=null?` · WAR ${num(r.war).toFixed(1)}`:''}${r.champs?` · 우승 ${num(r.champs)}회`:''}
+        ${r.type==='hitter'
+          ? `${r.career.h}안타 · ${r.career.hr}홈런 · ${fmtAvg(r.career.avg)}`
+          : `${r.career.w}승 · ${r.career.so}K · ERA ${r.career.era.toFixed(2)}`}
+        ${r.war!=null?` · WAR ${r.war.toFixed(1)}`:''}${r.champs?` · 우승 ${r.champs}회`:''}
       </div>
       <button class="chip" style="flex:none;padding:5px 10px;font-size:12px;color:var(--red);border-color:var(--red)"
         onclick="removeFromHall('${r.id}')">삭제</button>
-      </div></div></div>`;
-    }catch(e){
-      return `<div class="sheet"><div class="bd">
-        <b>${(r&&r.name)||'기록 손상'}</b>
-        <div style="font-size:12px;color:var(--ink-soft)">이 기록은 일부가 손상되어 표시할 수 없습니다.</div>
-        <button class="chip" style="margin-top:6px;color:var(--red);border-color:var(--red)"
-          onclick="removeFromHall('${r&&r.id}')">삭제</button>
-      </div></div>`;
-    }
-  };
-
-  body.innerHTML = h.length? `
-    <p class="eyebrow">${h.length}명 등재</p>
-    <h2 class="title">명부</h2>
-    ${h.map(card).join('')}
+      </div></div></div>`).join('')}
     <button class="btn ghost" onclick="exportHall()">기록 내보내기</button>
     <button class="btn warn" onclick="wipeHall()">기록실 비우기</button>`
-  : `<p class="eyebrow">아직 비어 있습니다</p>
-     <h2 class="title">기록실</h2>
-     <p class="lede">선수를 은퇴까지 데려가 등재하면 여기에 남습니다.
-       등재한 선수는 도전 모드에 내보낼 수 있습니다.</p>
-     <div class="sheet"><div class="hd">등재 인원 <span class="num">0</span></div><div class="bd">
-       <div style="font-size:13px;color:var(--ink-soft)">
-         은퇴 화면에서 «기록실에 등재»를 고르면 됩니다.<br>
-         등재하지 않아도 육성 포인트는 그대로 받습니다.</div>
-     </div></div>`;
+  : `<div class="empty" style="padding:40px 0">아직 아무도 등재되지 않았습니다.<br>한 선수를 은퇴까지 끌고 가면 여기에 남습니다.</div>`;
 }
 /* 기록실에서 한 명만 지운다 */
 function removeFromHall(id){

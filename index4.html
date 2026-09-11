@@ -1161,7 +1161,7 @@ function toScout(){
     salary:0, bonus:0, seasons:[], awards:[], champs:0, natl:0,
     draftRound:null, draftPick:null, college:0, retired:false, growthPts:0
   };
-  P.potential = clamp(ri(43,72) + GROWTH[P.gtype].pot + (meta().potBonus||0), 36, 94);
+  P.potential = clamp(ri(41,70) + GROWTH[P.gtype].pot + (meta().potBonus||0), 36, 94);
   P.__candRR = meta().candRerolls||0;
   drawCands(); renderScout(); go('s-scout');
 }
@@ -2183,7 +2183,7 @@ function growthPoints(s,amateur){
   fw *= (1-relA('formTight')); if(relHas('formWide')) fw*=1.5;
   P.form = clamp((P.form||1) * rnd(1-fw,1+fw*1.08), tHas('formTight')?.70:.42, tHas('formWide')?2.2:1.95);
   const curveAge = (flag('lateBloom') && P.age>29) ? 29 : P.age;
-  let base = rnd(1.46,2.42) * (meta().growMul||1) * interp(GROWTH[P.gtype].curve, curveAge) * P.form;
+  let base = rnd(1.34,2.26) * (meta().growMul||1) * interp(GROWTH[P.gtype].curve, curveAge) * P.form;
   base = relE('growMul', base);
   if(P.age<=25) base = relE('growYoung', base);
   if(P.age>=26) base = relE('growOld', base);
@@ -2218,7 +2218,7 @@ function ageDecay(){
 function resistance(){
   const gap = P.potential - P.ovr;
   const cb  = (P.capBreak || 1) + tAdd('cap');
-  if(gap > 0) return clamp(0.25 + gap/50, .25, 1.45);
+  if(gap > 0) return clamp(0.22 + gap/54, .22, 1.40);
   return (0.11*cb) / (1 + (-gap)*0.40/cb);
 }
 

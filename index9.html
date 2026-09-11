@@ -799,7 +799,7 @@ const TRAITS=[
   d:'이름값이 자리를 지켜준다.',
   e:{promo:2.2, awardOdds:1.15}, req:(p,s)=>s.awards.length>0 || (s.titles&&s.titles.length>0)}
 ];
-function traitSlots(){ return Math.min(2 + (meta().slotBonus||0), 3) }
+function traitSlots(){ return 4 + (meta().slotBonus||0) }
 function hasT(id){ return (P.traits||[]).some(t=>t.id===id) }
 /* 효과 조회 — mul은 곱연산, add는 합연산 */
 function tMul(k,base){ let v=base; (P.traits||[]).forEach(t=>{ if(t.e[k]!=null) v*=t.e[k] }); return v }
@@ -811,26 +811,11 @@ function traitOffers(sn){
   const odds = 0.17 + (sn.awards.length?0.12:0) + (sn.titles&&sn.titles.length?0.15:0);
   if(Math.random() > Math.min(odds,0.44)) return [];
   const owned=(P.traits||[]).map(t=>t.id);
-  // 이미 가진 특성과 같은 계통은 제안하지 않는다
-  const TR_GROUP={hr:'타격',avg:'타격',obp:'타격',rbi:'타격',run:'타격',sb:'주루',
-    era:'투구',k9:'투구',bb9:'투구',h9:'투구',ip:'출장',games:'출장',
-    grow:'성장',growBad:'성장',growAge:'성장',cap:'성장',
-    inj:'몸',heal:'몸',ageShift:'노화',
-    promo:'기회',trust:'기회',salary:'기회',faOffer:'기회',
-    rep:'명성',awardOdds:'명성',natl:'무대',champOdds:'무대',
-    formTight:'기복',formWide:'기복',cardUp:'훈련',posFit:'수비'};
-  const tGroups=t=>{ const g=new Set(); for(const k in (t.e||{})){ const n=TR_GROUP[k]; if(n) g.add(n) } return g; };
-  const ownGroup=new Set();
-  (P.traits||[]).forEach(t=>tGroups(t).forEach(x=>ownGroup.add(x)));
   const blocked=new Set();
   (P.traits||[]).forEach(t=>t.conflict.forEach(c=>blocked.add(c)));
-  let ok=TRAITS.filter(t=>
+  const ok=TRAITS.filter(t=>
     !owned.includes(t.id) && !blocked.has(t.id) &&
     (t.for==='any'||t.for===P.type) && t.req(P,sn));
-  // 겹치는 계통도 후보에 남긴다 — 교체할 수 있어야 한다. 다만 뒤로 밀어 둔다
-  const fresh=ok.filter(t=>{ for(const g of tGroups(t)) if(ownGroup.has(g)) return false; return true; });
-  const dup=ok.filter(t=>!fresh.includes(t));
-  ok=[...fresh.sort(()=>Math.random()-.5), ...dup.sort(()=>Math.random()-.5)];
   // 최대 3개 무작위 제시 — 매번 같은 선택지가 뜨지 않게
   const sh=ok.sort(()=>Math.random()-.5);
   return sh.slice(0, 3 + (flag('wideAll')?1:0));
@@ -867,7 +852,7 @@ const META_BASE={tp:0, ach:[], perks:{}, flags:{}, stats:{}, resets:0, lateGrow:
 const META_NUM=['tp','cards','rerolls','candRerolls','gradeLevel','critUp','potBonus','growMul',
   'injMod','natlMod','awardMod','trustStart','draftBoost','slotBonus','legacyMul','collegeExtra',
   'champMod','sangmuMod','lateOdds'];
-const META_CAP={cards:3, rerolls:3, candRerolls:3, cardQual:0.45, potBonus:12, relicSlot:2, slotBonus:1,
+const META_CAP={cards:3, rerolls:3, candRerolls:3, cardQual:0.45, potBonus:12, relicSlot:2, slotBonus:2,
   critUp:12, growMul:1.18, legacyMul:0.20, lateGrow:0.32};
 function meta(){
   let o;
@@ -1416,7 +1401,7 @@ function simHitter(games,level){
   /* 타석은 순서대로 풀린다.
      볼넷·사구를 빼고, 삼진을 빼고, 남은 타구 중 홈런과 인플레이 안타를 가른다.
      그래서 안타는 언제나 홈런보다 많거나 같다. */
-  const bbR  = clamp((0.026 + s.eye*0.0057 - lv*.2 + tAdd('obp')*0.6) * (RE().e.obpMul||1), .012, .26);
+  const bbR  = clamp(0.026 + s.eye*0.0057 - lv*.2 + (tAdd('obp')+relA('obp'))*0.6, .012, .24);
   const hbpR = clamp(rnd(.004,.013), 0, .03);
   const soR  = clamp(0.336 - s.contact*0.0069 - s.eye*0.0021 + lv*0.5, .07, .40);
   const sfR  = rnd(.004,.011);
@@ -1430,14 +1415,12 @@ function simHitter(games,level){
   // 홈런 — 타수 대비 비율
   const hrR = Math.pow(Math.max(s.power,1),1.51)*0.285/600
               * (1-lv*1.6) * tMul('hr',1) * (RE().e.hrMul||1) * Math.pow(E.off,1.5);
-  const hrCap = 0.086;                       // 타수당 홈런 한계 — 한 시즌 50개 언저리
-  let hr = Math.max(0, Math.round(gauss(Math.min(hrR,hrCap)*ab,
-            Math.sqrt(Math.max(Math.min(hrR,hrCap)*ab,1))*0.85)));
+  let hr = Math.max(0, Math.round(gauss(hrR*ab, Math.sqrt(Math.max(hrR*ab,1))*0.85)));
 
   // 인플레이 타구와 그 안타율(BABIP)
   const bip = Math.max(0, ab - so - hr);
-  const babipBase = clamp((0.228 + s.contact*0.0045 + s.speed*0.0017
-                          + tAdd('avg')*1.5) * (RE().e.avgMul||1), .15, .40) * Math.pow(E.off,0.45);
+  const babipBase = clamp(0.228 + s.contact*0.0045 + s.speed*0.0017
+                          + (tAdd('avg')+relA('avg'))*1.5, .15, .37) * Math.pow(E.off,0.45);
   const babip = clamp(gauss(babipBase, 0.021/Math.sqrt(Math.max(bip,60)/400)), .12, .42);
   const bipH = Math.round(bip*babip);
 
@@ -1813,7 +1796,7 @@ const RELICS=[
 
  // ══ 타격 계열 ══
  {id:'r_eye',    n:'좋은 눈',     t:'common', l:'bat', k:'none', for:'hitter',
-  d:'출루가 조금 는다', e:{obpMul:1.06}},
+  d:'출루가 조금 는다', e:{obp:0.009}},
  {id:'r_cont',   n:'교타 감각',   t:'common', l:'bat', k:'low', for:'hitter',
   d:'맞히는 재주를 얻고 힘을 조금 잃는다', e:{contactGrow:1.24, powerGrow:0.94}},
  {id:'r_pow',    n:'묵직한 손목', t:'common', l:'bat', k:'low', for:'hitter',
@@ -1821,11 +1804,11 @@ const RELICS=[
  {id:'r_legs',   n:'가벼운 발',   t:'common', l:'bat', k:'low', for:'hitter',
   d:'주력을 얻고 힘이 빠진다', e:{speedGrow:1.32, powerGrow:0.93}},
  {id:'r_upper',  n:'들어올리는 스윙',t:'rare',l:'bat', k:'mid', for:'hitter',
-  d:'담장은 가까워지고 타율은 멀어진다', e:{hrMul:1.36, avgMul:0.975, powerGrow:1.10}},
+  d:'담장은 가까워지고 타율은 멀어진다', e:{hrMul:1.55, avg:-0.008, powerGrow:1.10}},
  {id:'r_patient',n:'기다리는 타자',t:'rare',l:'bat', k:'mid', for:'hitter',
-  d:'볼넷이 크게 늘고 장타가 준다', e:{obpMul:1.075, hrMul:0.88}},
+  d:'볼넷이 크게 늘고 장타가 준다', e:{obp:0.022, hrMul:0.84}},
  {id:'r_sweet',  n:'타고난 손목', t:'legend', l:'bat', k:'none', for:'hitter',
-  d:'배트에 공이 알아서 맞는다', e:{avgMul:1.042, contactGrow:1.24, obpMul:1.03}},
+  d:'배트에 공이 알아서 맞는다', e:{avg:0.017, contactGrow:1.24, obp:0.008}},
 
  // ══ 투구 계열 ══
  {id:'r_arm',    n:'유연한 어깨', t:'common', l:'arm', k:'none', for:'pitcher',
@@ -1868,7 +1851,7 @@ const RELICS=[
 const REL_SET={            // 같은 계열을 모으면
   growth:{2:{growMul:1.08}, 3:{growMul:1.18, cardUp:0.06}},
   body:  {2:{injMul:0.88},  3:{injMul:0.74, gamesMul:1.05}},
-  bat:   {2:{avgMul:1.016}, 3:{avgMul:1.032, hrMul:1.08}},
+  bat:   {2:{avg:0.006},    3:{avg:0.013, hrMul:1.08}},
   arm:   {2:{era:-0.10},    3:{era:-0.24, ipMul:1.06}},
   mind:  {2:{formTight:0.2},3:{formTight:0.35, champOdds:1.2}},
   fame:  {2:{repMul:1.2},   3:{repMul:1.45, promoAdd:1.0}}
@@ -1879,7 +1862,7 @@ const REL_COMBO=[          // 특정 조합이 여는 추가 효과
   {need:['r_body','r_durable'], n:'강철 체력',
    d:'한 시즌을 온전히 소화한다', e:{gamesMul:1.08, ipMul:1.08, injMul:0.82}},
   {need:['r_eye','r_patient'], n:'출루 기계',
-   d:'좀처럼 아웃되지 않는다', e:{obpMul:1.06}},
+   d:'좀처럼 아웃되지 않는다', e:{obp:0.020}},
   {need:['r_ctrl','r_gload'], n:'맞혀 잡는 기술',
    d:'공 하나로 아웃 세 개를 만든다', e:{era:-0.22, ipMul:1.08}},
   {need:['r_rout','r_steel'], n:'흔들리지 않는다',
@@ -1891,7 +1874,7 @@ const REL_COMBO=[          // 특정 조합이 여는 추가 효과
   {need:['r_upper','r_pow'], n:'거포의 완성',
    d:'타구가 계속 넘어간다', e:{hrMul:1.22, powerGrow:1.15}},
   {need:['r_cont','r_sweet'], n:'안타 제조기',
-   d:'배트에 공이 붙는다', e:{avgMul:1.035, contactGrow:1.12}},
+   d:'배트에 공이 붙는다', e:{avg:0.014, contactGrow:1.12}},
   {need:['r_glass','r_heal'], n:'회복하는 유리몸',
    d:'다쳐도 다시 일어선다', e:{injMul:0.70, growMul:1.10}},
   {need:['r_late','r_iron2'], n:'끝나지 않는 전성기',
@@ -1912,7 +1895,7 @@ const REL_CLASH=[          // 서로 죽이는 조합
 const PERK_AMP={ growth:'p_grow', body:'p_inj', mind:'p_award', fame:'p_trust' };
 
 function relicById(id){ return RELICS.find(r=>r.id===id) }
-function relSlots(){ return Math.min(1 + (meta().relicSlot||0), 3) }
+function relSlots(){ return 3 + (meta().relicSlot||0) }
 function myRelics(){ return (P&&P.relics)||[] }
 
 /* 보유 유물 + 세트 + 조합 + 상충 + 특성 증폭을 모두 합친 최종 효과표 */
@@ -1922,7 +1905,7 @@ function relicEffects(){
     if(mode==='mul'){ out[k]=(out[k]==null?1:out[k])*v; mulK.add(k); }
     else out[k]=(out[k]||0)+v;
   };
-  const MULS=new Set(['growMul','injMul','ipMul','gamesMul','hrMul','avgMul','obpMul','repMul','trustMul',
+  const MULS=new Set(['growMul','injMul','ipMul','gamesMul','hrMul','repMul','trustMul',
     'awardMul','natlMul','champOdds','salaryMul','mainGrow','subGrow','growYoung','growOld',
     'growBad','decayMul','contactGrow','powerGrow','speedGrow','veloGrow','controlGrow']);
   const put=(e,scale)=>{ for(const k in e){
@@ -1952,38 +1935,6 @@ function relicEffects(){
   // 4) 상충 — 양쪽 다 들면 둘 다 약해진다
   const clashes=REL_CLASH.filter(c=>ids.includes(c.a)&&ids.includes(c.b));
   clashes.forEach(()=>{ mulK.forEach(k=>{ out[k]=1+(out[k]-1)*0.62 }); });
-
-  /* 5) 곱연산 제어 — 비슷한 효과가 겹치면 기하급수로 튄다.
-     초과분에 체감 곡선을 씌우고, 항목마다 상한을 둔다. */
-  const MUL_CAP={
-    hrMul:1.55, avgMul:1.085, obpMul:1.15, growMul:1.95, ipMul:1.42, gamesMul:1.22,
-    repMul:2.1, trustMul:1.5, awardMul:1.5, natlMul:1.7, champOdds:1.6, salaryMul:1.35,
-    mainGrow:2.2, growYoung:2.1, growOld:2.1, growBad:2.2, contactGrow:1.55, powerGrow:1.55,
-    speedGrow:1.55, veloGrow:1.55, controlGrow:1.55
-  };
-  const MUL_MIN={ injMul:0.45, decayMul:0.45, subGrow:0.30, hrMul:0.55,
-    avgMul:0.93, obpMul:0.85, trustMul:0.45, growMul:0.70 };
-  mulK.forEach(k=>{
-    let v=out[k];
-    if(v==null) return;
-    if(v>1){
-      // 1.0을 넘는 만큼은 점점 덜 먹힌다
-      v = 1 + Math.pow(v-1, 0.78);
-      const cap=MUL_CAP[k]; if(cap) v=Math.min(v,cap);
-    }else if(v<1){
-      v = 1 - Math.pow(1-v, 0.85);
-      const mn=MUL_MIN[k]; if(mn) v=Math.max(v,mn);
-    }
-    out[k]=Math.round(v*1000)/1000;
-  });
-  // 합연산 항목도 상한
-  const ADD_CAP={ promoAdd:4.0, healAdd:14, injAdd:12, ageShift:6, formTight:0.75,
-    k9:3.0, era:-1.2, cardUp:0.3, psBoost:2.0, titleStack:2.4 };
-  for(const k in ADD_CAP){
-    if(out[k]==null) continue;
-    const c=ADD_CAP[k];
-    out[k] = c<0 ? Math.max(out[k], c) : Math.min(out[k], c);
-  }
   return {e:out, sets, combos, clashes, lineCount};
 }
 let __relCache=null, __relKey='';
@@ -1996,37 +1947,7 @@ function relE(k, base){ const v=RE().e[k]; return v==null? base : base*v }
 function relA(k){ const v=RE().e[k]; return v==null?0:v }
 function relHas(k){ return RE().e[k]!=null }
 
-/* 이미 가진 효과와 겹치는 유물은 나오지 않는다. */
-const REL_KEYGROUP={
-  hrMul:'타격', avgMul:'타격', obpMul:'타격', contactGrow:'타격성장', powerGrow:'타격성장',
-  speedGrow:'주루', era:'투구', k9:'투구', controlGrow:'투구성장', veloGrow:'투구성장',
-  growMul:'성장', mainGrow:'성장', subGrow:'성장', growYoung:'성장시기', growOld:'성장시기',
-  growBad:'성장시기', decayMul:'노화', ageShift:'노화',
-  injMul:'몸', injAdd:'몸', healAdd:'몸', ipMul:'출장', gamesMul:'출장',
-  repMul:'명성', awardMul:'명성', promoAdd:'기회', trustMul:'기회', salaryMul:'기회',
-  natlMul:'무대', champOdds:'무대', psBoost:'무대', titleStack:'무대',
-  formTight:'기복', formWide:'기복', cardUp:'훈련'
-};
-function relGroups(r){
-  const g=new Set();
-  for(const k in r.e){ const n=REL_KEYGROUP[k]; if(n) g.add(n) }
-  return g;
-}
-function ownedGroups(){
-  const g=new Set();
-  myRelics().forEach(id=>{ const r=relicById(id); if(r) relGroups(r).forEach(x=>g.add(x)) });
-  return g;
-}
-/* 가진 것과 같은 계통이라도 후보에는 오른다 — 더 좋은 것으로 갈아탈 수 있어야 한다.
-   다만 자주 뜨지는 않게 가중치를 낮춘다. */
-function conflictWith(r){
-  const g=relGroups(r);
-  return myRelics().filter(id=>{
-    const o=relicById(id); if(!o) return false;
-    for(const x of relGroups(o)) if(g.has(x)) return true;
-    return false;
-  });
-}
+/* 등급 추첨 — 성과가 좋을수록 상위 등급이 잘 나온다 */
 function drawRelics(n, lucky){
   const owned=myRelics();
   const pool=RELICS.filter(r=>!owned.includes(r.id) && (r.for==='any'||r.for===P.type));
@@ -2035,8 +1956,6 @@ function drawRelics(n, lucky){
     let w=REL_TIER[r.t].w;
     if(lucky) w*=(r.t==='legend'?2.4:r.t==='epic'?1.9:r.t==='rare'?1.5:0.7);
     w*=1+(meta().relicLuck||0);
-    if(conflictWith(r).length) w*=0.35;      // 겹치는 계통은 드물게
-
     for(let i=0;i<Math.max(1,Math.round(w));i++) bag.push(r.id);
   });
   const out=[];
@@ -2045,11 +1964,6 @@ function drawRelics(n, lucky){
     const id=pick(bag);
     if(!out.includes(id)) out.push(id);
     if(out.length>=pool.length) break;
-  }
-  if(out.length<n){
-    const rest=RELICS.filter(r=>!owned.includes(r.id) && !out.includes(r.id)
-      && (r.for==='any'||r.for===P.type)).sort(()=>Math.random()-.5);
-    for(const r of rest){ if(out.length>=n) break; out.push(r.id); }
   }
   return out;
 }
@@ -3175,8 +3089,7 @@ function chooseEvent(ei,oi){
   if(ti===0 && !r.trait && Math.random()<0.12) r.trait=true;
   const extra=[];
 
-  // 한 번의 이벤트가 몰아주는 성장에는 한계를 둔다
-  if(r.gp)   P.growthPts=Math.max(0,Math.round((P.growthPts+Math.min(r.gp,2.2))*10)/10);
+  if(r.gp)   P.growthPts=Math.max(0,Math.round((P.growthPts+r.gp)*10)/10);
   if(r.inj)  P.injury=clamp(P.injury+r.inj,0,50);
   if(r.rep)  P.rep=clamp(P.rep+r.rep,0,100);
   if(r.trust)P.trust=clamp(P.trust+r.trust,0,100);
@@ -4070,7 +3983,7 @@ function relicChip(r, extra){
     <span>${r.d}<br><span style="color:var(--red);font-size:11.5px">${relEffText(r)}</span>${extra||''}</span>`;
 }
 const REL_LBL={growMul:'성장',injMul:'부상',ipMul:'이닝',gamesMul:'출장',hrMul:'홈런',
-  avgMul:'타율',obpMul:'출루',avg:'타율',obp:'출루',era:'평균자책',k9:'탈삼진',repMul:'평판',trustMul:'팀 신뢰',
+  avg:'타율',obp:'출루',era:'평균자책',k9:'탈삼진',repMul:'평판',trustMul:'팀 신뢰',
   awardMul:'수상 경쟁',natlMul:'국대 선발',champOdds:'우승 확률',salaryMul:'연봉',
   promoAdd:'1군 경쟁력',healAdd:'회복',injAdd:'부상 누적',ageShift:'노화 지연',
   decayMul:'노화 속도',growYoung:'젊을 때 성장',growOld:'서른 이후 성장',growBad:'부진 후 반등',
@@ -4112,9 +4025,7 @@ function rerollRelic(){ window.__relRerolled=true; const o=window.__relOpts||{};
 function skipRelic(){ const f=window.__relNext; window.__relNext=null; if(f) f(); }
 function takeRelic(i){
   window.__relRerolled=false;
-  const id=window.__relList[i], r=relicById(id);
-  const clash=conflictWith(r);
-  if(clash.length){ window.__relPend=id; renderRelicSwap(clash, r); return; }
+  const id=window.__relList[i];
   P.relics=[...myRelics(), id];
   __relKey='';
   // 도감 기록
@@ -4132,34 +4043,6 @@ function showRelicResult(id){
     <button class="btn" onclick="(window.__relNext||renderOffseason)()">계속</button>`;
   window.scrollTo(0,0);
 }
-/* 같은 계통을 이미 가지고 있다 — 바꿔 끼우거나 포기한다 */
-function renderRelicSwap(clash, nr){
-  document.getElementById('relic-body').innerHTML=`
-    <p class="eyebrow">같은 계통</p>
-    <h2 class="title">무엇을 내줄까</h2>
-    <p class="lede">「${nr.n}」은(는) 이미 가진 것과 같은 성격입니다.
-      한 몸에 두 가지를 담을 수는 없습니다.</p>
-    <div class="sheet"><div class="hd">새로 얻을 것</div><div class="bd">
-      <div style="padding:2px 0">${relicChip(nr)}</div>
-    </div></div>
-    <div class="sheet"><div class="hd">대신 잃을 것</div><div class="bd" style="padding:9px 10px">
-      ${clash.map(id=>{ const o=relicById(id);
-        return `<button class="opt" onclick="swapRelic('${id}')">${relicChip(o)}</button>`; }).join('')}
-    </div></div>
-    <button class="opt" onclick="abortRelic()"><b>지금 것을 지킨다</b>
-      <span>새 유물을 받지 않습니다.</span></button>`;
-  go('s-relic'); window.scrollTo(0,0);
-}
-function swapRelic(oldId){
-  const id=window.__relPend; window.__relPend=null;
-  P.relics=[...myRelics().filter(x=>x!==oldId), id];
-  __relKey='';
-  const m=meta(); m.relicDex=[...new Set([...(m.relicDex||[]), id])]; setMeta(m);
-  if(P.relics.length>relSlots()){ renderRelicDrop(); return; }
-  save(); showRelicResult(id);
-}
-function abortRelic(){ window.__relPend=null; const f=window.__relNext; window.__relNext=null; if(f) f(); }
-
 /* 슬롯이 넘치면 버릴 것을 고른다 */
 function renderRelicDrop(){
   document.getElementById('relic-body').innerHTML=`
@@ -4388,7 +4271,7 @@ function projectSeason(){
   if(P.type==='hitter'){
     const games=Math.round((minor?128:144)*({'2군':.80,'백업':.64,'주전':.95,'핵심':.99}[st.role]||.9)*dur*0.97);
     const pa=Math.round(paFor(st.role, games));
-    const bbR=clamp((0.026+s.eye*0.0057-lv*.2+tAdd('obp')*0.6)*(RE().e.obpMul||1),.012,.26);
+    const bbR=clamp(0.026+s.eye*0.0057-lv*.2+(tAdd('obp')+relA('obp'))*0.6,.012,.24);
     const bb=Math.round(pa*bbR), hbp=Math.round(pa*.008), sf=Math.round(pa*.007);
     const ab=Math.max(1,pa-bb-hbp-sf);
     const soR=clamp(0.336-s.contact*0.0069-s.eye*0.0021+lv*0.5,.07,.40);
@@ -4396,7 +4279,7 @@ function projectSeason(){
     const hrR=Math.pow(Math.max(s.power,1),1.51)*0.285/600*(1-lv*1.6)*tMul('hr',1)*(RE().e.hrMul||1)*Math.pow(E.off,1.5);
     const hr=Math.round(hrR*ab);
     const bip=Math.max(0,ab-so-hr);
-    const babip=clamp((0.228+s.contact*0.0045+s.speed*0.0017+tAdd('avg')*1.5)*(RE().e.avgMul||1),.15,.40)*Math.pow(E.off,0.45);
+    const babip=clamp(0.228+s.contact*0.0045+s.speed*0.0017+(tAdd('avg')+relA('avg'))*1.5,.15,.37)*Math.pow(E.off,0.45);
     const bipH=Math.round(bip*babip), h=Math.min(ab,bipH+hr);
     const d2=Math.round(bipH*clamp(0.175+s.power*0.0045,.10,.34));
     const d3=Math.round(bipH*clamp(0.004+s.speed*0.0016,0,.045));

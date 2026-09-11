@@ -808,8 +808,8 @@ function tHas(k){ return (P.traits||[]).some(t=>t.e[k]!=null) }
 function traitOffers(sn){
   if((P.traits||[]).length>=traitSlots()) return [];
   // 조건을 채웠다고 매번 주어지지 않는다
-  const odds = 0.17 + (sn.awards.length?0.12:0) + (sn.titles&&sn.titles.length?0.15:0);
-  if(Math.random() > Math.min(odds,0.44)) return [];
+  const odds = 0.22 + (sn.awards.length?0.15:0) + (sn.titles&&sn.titles.length?0.15:0);
+  if(Math.random() > Math.min(odds,0.55)) return [];
   const owned=(P.traits||[]).map(t=>t.id);
   const blocked=new Set();
   (P.traits||[]).forEach(t=>t.conflict.forEach(c=>blocked.add(c)));
@@ -818,7 +818,7 @@ function traitOffers(sn){
     (t.for==='any'||t.for===P.type) && t.req(P,sn));
   // 최대 3개 무작위 제시 — 매번 같은 선택지가 뜨지 않게
   const sh=ok.sort(()=>Math.random()-.5);
-  return sh.slice(0, 3 + (flag('traitWide')?1:0));
+  return sh.slice(0,3);
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -843,7 +843,7 @@ function fmtMoney(m){ // 만원 단위
    결과를 직접 주지 않는다. 확률과 폭만 넓힌다.
    ═══════════════════════════════════════════════════════════ */
 const KEY_META='bp_career_meta';
-const META_BASE={tp:0, ach:[], perks:{}, flags:{}, stats:{}, resets:0, relicSlot:0, relicLuck:0, relicDex:[],
+const META_BASE={tp:0, ach:[], perks:{}, flags:{}, stats:{}, relicSlot:0, relicLuck:0, relicDex:[],
   psMod:0, goalMod:0, hlMod:0, rivalMod:0, releaseCut:0, marketMod:0, healMod:0, injMod:0, natlMod:0, awardMod:0, trustStart:0,
   draftBoost:0, slotBonus:0, legacyMul:0, collegeExtra:0,
   cleared:[], cards:3, rerolls:0, candRerolls:0, gradeLevel:0, potBonus:0, growMul:1,
@@ -891,10 +891,10 @@ const RISK={
 };
 const TIERS=[
   {n:'대성공', m:1.55, c:'var(--gold)'},
-  {n:'성공',   m:1.20, c:'var(--blue)'},
-  {n:'보통',   m:0.88, c:'var(--ink)'},
-  {n:'실패',   m:0.00, c:'var(--ink-soft)', form:0.93},  // 겨울을 날렸다
-  {n:'대실패', m:0.00, c:'var(--red)'}                    // 오히려 잃는다
+  {n:'성공',   m:1.22, c:'var(--blue)'},
+  {n:'보통',   m:1.00, c:'var(--ink)'},
+  {n:'실패',   m:0.62, c:'var(--ink-soft)'},
+  {n:'대실패', m:0.00, c:'var(--red)'}
 ];
 function keysOf(){ return (P.type==='hitter'?H_KEYS:P_KEYS) }
 function labelOf(k){ return keysOf().find(x=>x[0]===k)[1] }
@@ -912,64 +912,23 @@ function makeGrowthCards(){
       t:pick(FLAVOR[a]), d:`${labelOf(a)} 중심, ${labelOf(b)}도 함께`});
   }
   // 균등
-  const ev={}; ks.forEach(k=>ev[k]=0.85/ks.length);
-  pool.push({kind:'전반', risk:'safe', split:ev, w:0.22,
-    t:'전체적으로 여물었다', d:'모든 능력이 조금씩'});
+  const ev={}; ks.forEach(k=>ev[k]=1/ks.length);
+  pool.push({kind:'전반', risk:'safe', split:ev, t:'전체적으로 여물었다', d:'모든 능력이 조금씩'});
   // 도박
   ks.forEach(k=>pool.push({kind:'무리', risk:'gamble', split:{[k]:1.22},
     t:`${labelOf(k)}에 전부 건다`, d:'크게 얻거나, 잃는다'}));
-  // ── 기본기 팩 ──
-  if(flag('packBasic')){
-    const low=[...ks].sort((a,b)=>P.stats[a]-P.stats[b])[0];
-    pool.push({kind:'보완', risk:'safe', split:{[low]:0.85}, w:0.8,
-      t:`${labelOf(low)}을 파고들었다`, d:'가장 약한 곳부터'});
-  }
-  if(flag('packTrade')){
-    const hi=[...ks].sort((a,b)=>P.stats[b]-P.stats[a])[0];
-    const lo=[...ks].sort((a,b)=>P.stats[a]-P.stats[b])[0];
-    if(hi!==lo) pool.push({kind:'교환', risk:'normal', trade:[hi,lo], split:{[lo]:1.45}, w:0.7,
-      t:`${labelOf(hi)}을 덜고 ${labelOf(lo)}에 붙였다`, d:`${labelOf(hi)}이 줄어든다`});
-  }
-  if(flag('packBasic')) pool.push({kind:'실전', risk:'safe', split:(()=>{const o={};ks.forEach(k=>o[k]=0.16);return o})(),
-    w:0.55, form:1.18, trust:7, t:'경기에서 배웠다', d:'흐름과 구단 신뢰가 오른다'});
-  if(flag('packCare')) pool.push({kind:'재활', risk:'safe', split:{}, heal:14, w:0.65,
-    t:'몸을 먼저 돌봤다', d:'부상 위험이 크게 줄어든다'});
-  if(flag('packCare')){
-    const k=pick(ks);
-    pool.push({kind:'특훈', risk:'gamble', split:{[k]:1.55}, inj:12, w:0.7,
-      t:`${labelOf(k)}을 끝까지 몰아붙였다`, d:'부상 위험을 안고 간다'});
-  }
   // 희귀 (해금)
   if(M.rare){
     const top=pick(ks);
-    pool.push({kind:'각성', risk:'normal', rare:true, split:{[top]:1.38}, w:0.55,
+    pool.push({kind:'각성', risk:'normal', rare:true, split:{[top]:1.38},
       t:'무언가 트였다', d:`${labelOf(top)}이 단숨에`});
-    const all={}; ks.forEach(k=>all[k]=0.22);
-    pool.push({kind:'개화', risk:'normal', rare:true, split:all, w:0.30,
+    const all={}; ks.forEach(k=>all[k]=0.26);
+    pool.push({kind:'개화', risk:'normal', rare:true, split:all,
       t:'몸 전체가 달라졌다', d:'전 능력치가 크게'});
-    const two=[...ks].sort(()=>Math.random()-.5).slice(0,2);
-    pool.push({kind:'양날', risk:'gamble', rare:true, split:{[two[0]]:1.7},
-      w:0.55, trade:[two[1],two[0]], t:'하나를 버리고 하나를 얻었다',
-      d:`${labelOf(two[0])}이 크게, ${labelOf(two[1])}은 줄어든다`});
-    pool.push({kind:'전기', risk:'normal', rare:true, split:{}, potUp:3, w:0.45,
-      t:'천장이 높아졌다', d:'잠재력이 올라간다'});
   }
-  /* 가중치 추첨 — 판을 흔드는 카드일수록 드물게 잡힌다.
-     희귀 카드는 손패에 많아야 한 장. */
-  const draw=(arr,cnt)=>{
-    const bag=arr.slice(), out=[];
-    while(out.length<cnt && bag.length){
-      const tot=bag.reduce((a,x)=>a+(x.w==null?1:x.w),0);
-      let r=Math.random()*tot, idx=0;
-      for(let i=0;i<bag.length;i++){ r-=(bag[i].w==null?1:bag[i].w); if(r<=0){ idx=i; break } }
-      out.push(bag.splice(idx,1)[0]);
-    }
-    return out;
-  };
-  const rares=pool.filter(x=>x.rare), norms=pool.filter(x=>!x.rare);
-  const sh=[];
-  if(rares.length && Math.random()<0.42) sh.push(...draw(rares,1));
-  sh.push(...draw(norms, Math.max(0, M.cards - sh.length)));
+  const sh=pool.sort(()=>Math.random()-.5);
+  // 희귀는 항상 앞쪽에 오도록 살짝 가중
+  sh.sort((a,b)=>(b.rare?1:0)-(a.rare?1:0)||0);
   const n=Math.min(M.cards, sh.length);
   const out=[]; const seen=new Set();
   for(const c of sh){
@@ -983,7 +942,7 @@ function makeGrowthCards(){
 function rollTier(risk){
   const M=meta();
   let d=[...RISK[risk].dist];
-  if(M.noDisaster){ const cut=Math.round(d[4]*0.7); d[3]+=cut; d[4]-=cut; }  // 대실패 확률 크게 감소
+  if(M.noDisaster){ d[3]+=d[4]; d[4]=0; }          // 대실패 제거
   if(M.critUp){ const mv=Math.min(d[2],M.critUp); d[2]-=mv; d[0]+=mv; }
   // 기복이 좋으면 위쪽으로, 부상이 쌓이면 아래쪽으로
   const f=(P.form||1)-1;
@@ -999,7 +958,7 @@ function riskLabel(c){
   const r=RISK[c.risk]; const M=meta();
   if(!M.preview) return r.n;
   const d=RISK[c.risk].dist;
-  return `${r.n} · 대성공 ${d[0]}% / 대실패 ${d[4]}%`;
+  return `${r.n} · 대성공 ${d[0]}% / 대실패 ${M.noDisaster?0:d[4]}%`;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1161,7 +1120,7 @@ function toScout(){
     salary:0, bonus:0, seasons:[], awards:[], champs:0, natl:0,
     draftRound:null, draftPick:null, college:0, retired:false, growthPts:0
   };
-  P.potential = clamp(ri(41,70) + GROWTH[P.gtype].pot + (meta().potBonus||0), 36, 94);
+  P.potential = clamp(ri(41,70) + GROWTH[P.gtype].pot + (meta().potBonus||0), 38, 94);
   P.__candRR = meta().candRerolls||0;
   drawCands(); renderScout(); go('s-scout');
 }
@@ -1313,7 +1272,7 @@ function skipRun(){
    경쟁자 수준은 매년 새로 뽑히므로 같은 능력치라도 해마다 결과가 다르다.
    ───────────────────────────────────────────────────────── */
 const LEAGUE={
-  callup: [60.2, 3.1],   // 1군을 생각해볼 수 있는 수준
+  callup: [59.5, 3.0],   // 1군을 생각해볼 수 있는 수준
   regular:[66.8, 3.4],   // 주전 경쟁이 되는 수준
   core:   [74.2, 3.6],   // 1군에서 제 몫을 하는 수준
   keep:   [57.0, 3.0]    // 1군에 남아 있을 수 있는 하한
@@ -1388,9 +1347,9 @@ function simHitter(games,level){
   /* 타석은 순서대로 풀린다.
      볼넷·사구를 빼고, 삼진을 빼고, 남은 타구 중 홈런과 인플레이 안타를 가른다.
      그래서 안타는 언제나 홈런보다 많거나 같다. */
-  const bbR  = clamp(0.026 + s.eye*0.0057 - lv*.2 + (tAdd('obp')+relA('obp'))*0.6, .012, .24);
+  const bbR  = clamp(0.028 + s.eye*0.0060 - lv*.2 + (tAdd('obp')+relA('obp'))*0.6, .015, .26);
   const hbpR = clamp(rnd(.004,.013), 0, .03);
-  const soR  = clamp(0.336 - s.contact*0.0069 - s.eye*0.0021 + lv*0.5, .07, .40);
+  const soR  = clamp(0.328 - s.contact*0.0072 - s.eye*0.0022 + lv*0.5, .06, .38);
   const sfR  = rnd(.004,.011);
 
   const bb  = Math.round(pa*gauss(bbR, bbR*0.13));
@@ -1400,14 +1359,14 @@ function simHitter(games,level){
   const so  = Math.max(0, Math.round(ab*clamp(gauss(soR,soR*0.12),.03,.45)));
 
   // 홈런 — 타수 대비 비율
-  const hrR = Math.pow(Math.max(s.power,1),1.51)*0.285/600
+  const hrR = Math.pow(Math.max(s.power,1),1.50)*0.32/600
               * (1-lv*1.6) * tMul('hr',1) * (RE().e.hrMul||1) * Math.pow(E.off,1.5);
   let hr = Math.max(0, Math.round(gauss(hrR*ab, Math.sqrt(Math.max(hrR*ab,1))*0.85)));
 
   // 인플레이 타구와 그 안타율(BABIP)
   const bip = Math.max(0, ab - so - hr);
-  const babipBase = clamp(0.228 + s.contact*0.0045 + s.speed*0.0017
-                          + (tAdd('avg')+relA('avg'))*1.5, .15, .37) * Math.pow(E.off,0.45);
+  const babipBase = clamp(0.232 + s.contact*0.0046 + s.speed*0.0018
+                          + (tAdd('avg')+relA('avg'))*1.5, .16, .38) * Math.pow(E.off,0.45);
   const babip = clamp(gauss(babipBase, 0.021/Math.sqrt(Math.max(bip,60)/400)), .12, .42);
   const bipH = Math.round(bip*babip);
 
@@ -1451,9 +1410,9 @@ function simPitcher(games,level){
   ip=Math.max(6,ip);
   const lv=level;
   const E=leagueEnv(P.year);
-  let era=clamp((7.72-(s.stuff*.104+s.control*.082+s.breaking*.058+s.velo*.042)+lv*9+tAdd('era')+relA('era'))*Math.pow(E.off,0.8),1.05,9.50);
+  let era=clamp((7.40-(s.stuff*.105+s.control*.085+s.breaking*.062+s.velo*.045)+lv*9+tAdd('era')+relA('era'))*Math.pow(E.off,0.8),1.05,9.50);
   era=clamp(gauss(era,1.25/Math.sqrt(ip/60)),1.10,11.0);
-  const k9=clamp(2.3+s.stuff*.26+s.breaking*.15+gauss(0,.7)+tAdd('k9')+relA('k9'),2,15);
+  const k9=clamp(2.6+s.stuff*.28+s.breaking*.16+gauss(0,.7)+tAdd('k9')+relA('k9'),2,15);
   const bb9=clamp(7.4-s.control*.24+gauss(0,.5)+tAdd('bb9'),.6,9);
   const h9=clamp(11.4-s.stuff*.16-s.control*.07+gauss(0,.6)+tAdd('h9'),4.0,14);
   const so=Math.round(ip*k9/9), bbN=Math.round(ip*bb9/9), hAl=Math.round(ip*h9/9);
@@ -1755,17 +1714,17 @@ const RELICS=[
  {id:'r_coachable',n:'가르치는 맛',t:'rare', l:'growth', k:'none', for:'any',
   d:'훈련 성과가 잘 붙는다', e:{growMul:1.16, cardUp:0.08}},
  {id:'r_lone',   n:'독불장군',   t:'rare', l:'growth', k:'mid', for:'any',
-  d:'혼자서도 잘 크지만 구단과 겉돈다', e:{growMul:1.34, trustMul:0.62}},
+  d:'혼자서도 잘 크지만 구단과 겉돈다', e:{growMul:1.26, trustMul:0.55}},
  {id:'r_allin',  n:'전부를 건다', t:'epic', l:'growth', k:'high', for:'any',
-  d:'주 특성만 폭발하고 나머지는 멈춘다', e:{mainGrow:2.0, subGrow:0.38}},
+  d:'주 특성만 폭발하고 나머지는 멈춘다', e:{mainGrow:2.2, subGrow:0.35}},
  {id:'r_late',   n:'늦된 몸',    t:'epic', l:'growth', k:'cond', for:'any',
   d:'스물다섯까지는 더디고 그 뒤로 터진다', e:{growYoung:0.55, growOld:2.3}},
  {id:'r_burn',   n:'타오르는 재능',t:'epic',l:'growth', k:'high', for:'any',
-  d:'이십대에 무섭게 크고 서른부터 급격히 꺾인다', e:{growYoung:2.25, decayMul:1.55}},
+  d:'이십대에 무섭게 크고 서른부터 급격히 꺾인다', e:{growYoung:1.8, decayMul:2.1}},
  {id:'r_pride',  n:'자존심',     t:'rare', l:'growth', k:'cond', for:'any',
   d:'부진한 시즌 뒤에 크게 반등한다', e:{growBad:2.0}},
  {id:'r_heart',  n:'괴물의 심장', t:'legend',l:'growth',k:'high', for:'any',
-  d:'몰라보게 자라지만 몸이 매년 비명을 지른다', e:{growMul:2.10, injMul:1.75, injAdd:4}},
+  d:'몰라보게 자라지만 몸이 매년 비명을 지른다', e:{growMul:1.70, injMul:2.5, injAdd:7}},
 
  // ══ 신체 계열 ══
  {id:'r_body',   n:'튼튼한 몸',   t:'common', l:'body', k:'none', for:'any',
@@ -1773,59 +1732,59 @@ const RELICS=[
  {id:'r_heal',   n:'빠른 회복',   t:'common', l:'body', k:'none', for:'any',
   d:'다쳐도 금방 돌아온다', e:{healAdd:6}},
  {id:'r_glass',  n:'유리 손목',   t:'rare', l:'body', k:'mid', for:'any',
-  d:'빨리 늘지만 자주 다친다', e:{growMul:1.48, injMul:1.50}},
+  d:'빨리 늘지만 자주 다친다', e:{growMul:1.28, injMul:1.85}},
  {id:'r_iron2',  n:'철인의 유산', t:'epic', l:'body', k:'cond', for:'any',
   d:'서른다섯을 넘기면 노화가 거의 멈춘다', e:{ageShift:4, growOld:1.3}},
  {id:'r_durable',n:'지치지 않는 다리',t:'rare',l:'body',k:'none', for:'any',
-  d:'풀타임을 소화한다', e:{gamesMul:1.10, ipMul:1.10, injMul:0.92}},
+  d:'풀타임을 소화한다', e:{gamesMul:1.07, ipMul:1.07}},
  {id:'r_fast',   n:'속성 재배',   t:'rare', l:'body', k:'high', for:'any',
-  d:'초반에 몰아치고 일찍 저문다', e:{growYoung:1.75, ageShift:-2}},
+  d:'초반에 몰아치고 일찍 저문다', e:{growYoung:1.55, ageShift:-3}},
 
  // ══ 타격 계열 ══
  {id:'r_eye',    n:'좋은 눈',     t:'common', l:'bat', k:'none', for:'hitter',
   d:'출루가 조금 는다', e:{obp:0.009}},
  {id:'r_cont',   n:'교타 감각',   t:'common', l:'bat', k:'low', for:'hitter',
-  d:'맞히는 재주를 얻고 힘을 조금 잃는다', e:{contactGrow:1.24, powerGrow:0.94}},
+  d:'맞히는 재주를 얻고 힘을 조금 잃는다', e:{contactGrow:1.20, powerGrow:0.90}},
  {id:'r_pow',    n:'묵직한 손목', t:'common', l:'bat', k:'low', for:'hitter',
-  d:'힘을 얻고 정확도를 조금 잃는다', e:{powerGrow:1.26, contactGrow:0.94}},
+  d:'힘을 얻고 정확도를 조금 잃는다', e:{powerGrow:1.22, contactGrow:0.90}},
  {id:'r_legs',   n:'가벼운 발',   t:'common', l:'bat', k:'low', for:'hitter',
-  d:'주력을 얻고 힘이 빠진다', e:{speedGrow:1.32, powerGrow:0.93}},
+  d:'주력을 얻고 힘이 빠진다', e:{speedGrow:1.26, powerGrow:0.88}},
  {id:'r_upper',  n:'들어올리는 스윙',t:'rare',l:'bat', k:'mid', for:'hitter',
-  d:'담장은 가까워지고 타율은 멀어진다', e:{hrMul:1.55, avg:-0.008, powerGrow:1.10}},
+  d:'담장은 가까워지고 타율은 멀어진다', e:{hrMul:1.30, avg:-0.013}},
  {id:'r_patient',n:'기다리는 타자',t:'rare',l:'bat', k:'mid', for:'hitter',
-  d:'볼넷이 크게 늘고 장타가 준다', e:{obp:0.022, hrMul:0.84}},
+  d:'볼넷이 크게 늘고 장타가 준다', e:{obp:0.028, hrMul:0.82}},
  {id:'r_sweet',  n:'타고난 손목', t:'legend', l:'bat', k:'none', for:'hitter',
-  d:'배트에 공이 알아서 맞는다', e:{avg:0.017, contactGrow:1.24, obp:0.008}},
+  d:'배트에 공이 알아서 맞는다', e:{avg:0.016, contactGrow:1.20}},
 
  // ══ 투구 계열 ══
  {id:'r_arm',    n:'유연한 어깨', t:'common', l:'arm', k:'none', for:'pitcher',
   d:'어깨가 덜 지친다', e:{injMul:0.85, ipMul:1.05}},
  {id:'r_ctrl',   n:'차분한 손끝', t:'common', l:'arm', k:'low', for:'pitcher',
-  d:'제구를 얻고 구속을 조금 잃는다', e:{controlGrow:1.26, veloGrow:0.93}},
+  d:'제구를 얻고 구속을 조금 잃는다', e:{controlGrow:1.22, veloGrow:0.88}},
  {id:'r_velo',   n:'싱싱한 팔',   t:'common', l:'arm', k:'low', for:'pitcher',
-  d:'구속을 얻고 제구가 흔들린다', e:{veloGrow:1.30, controlGrow:0.92}},
+  d:'구속을 얻고 제구가 흔들린다', e:{veloGrow:1.24, controlGrow:0.86}},
  {id:'r_iron',   n:'무쇠 어깨',   t:'rare', l:'arm', k:'mid', for:'pitcher',
-  d:'많이 던지지만 구속이 더디게 큰다', e:{ipMul:1.34, veloGrow:0.78, injMul:0.90}},
+  d:'많이 던지지만 구속이 더디게 큰다', e:{ipMul:1.24, veloGrow:0.62}},
  {id:'r_gload',  n:'땅볼 투수',   t:'rare', l:'arm', k:'mid', for:'pitcher',
-  d:'맞혀 잡는 대신 삼진이 사라진다', e:{era:-0.38, k9:-1.4}},
+  d:'맞혀 잡는 대신 삼진이 사라진다', e:{era:-0.30, k9:-1.9}},
  {id:'r_deadarm',n:'죽지 않는 팔',t:'legend',l:'arm', k:'none', for:'pitcher',
-  d:'던져도 던져도 지치지 않는다', e:{ipMul:1.28, injMul:0.62, ageShift:2}},
+  d:'던져도 던져도 지치지 않는다', e:{ipMul:1.20, injMul:0.70}},
 
  // ══ 멘탈 계열 ══
  {id:'r_rout',   n:'루틴',       t:'common', l:'mind', k:'none', for:'any',
   d:'기복이 줄어든다', e:{formTight:0.40}},
  {id:'r_clutch', n:'승부사 기질', t:'rare', l:'mind', k:'cond', for:'any',
-  d:'큰 무대에서 강해진다', e:{champOdds:1.38, psBoost:0.8, natlMul:1.22}},
+  d:'큰 무대에서 강해진다', e:{champOdds:1.45, psBoost:1.0, natlMul:1.25}},
  {id:'r_gamble', n:'도박사',     t:'epic', l:'mind', k:'high', for:'any',
-  d:'시즌 성적의 진폭이 극단으로 벌어진다', e:{formWide:1.0, growMul:1.30, awardMul:1.12}},
+  d:'시즌 성적의 진폭이 극단으로 벌어진다', e:{formWide:1.0, growMul:1.14}},
  {id:'r_steel',  n:'강철 멘탈',   t:'rare', l:'mind', k:'none', for:'any',
   d:'무너지지 않는다', e:{formTight:0.30, trustMul:1.25}},
  {id:'r_legacy', n:'기록의 갈망', t:'legend',l:'mind', k:'cond', for:'any',
-  d:'타이틀을 딸수록 강해진다', e:{titleStack:1.6, awardMul:1.15}},
+  d:'타이틀을 딸수록 강해진다', e:{titleStack:0.9}},
 
  // ══ 명성 계열 ══
  {id:'r_flash',  n:'화려한 플레이',t:'rare',l:'fame', k:'mid', for:'any',
-  d:'주목받지만 실속이 덜하다', e:{repMul:1.9, awardMul:1.35, growMul:0.94}},
+  d:'주목받지만 실속이 덜하다', e:{repMul:1.9, awardMul:1.25, growMul:0.90}},
  {id:'r_favor',  n:'구단의 총애', t:'common',l:'fame', k:'none', for:'any',
   d:'기회를 더 받는다', e:{promoAdd:1.2, trustMul:1.2}},
  {id:'r_star',   n:'타고난 스타성',t:'epic',l:'fame', k:'none', for:'any',
@@ -2062,31 +2021,14 @@ function executeSeason(){
   }
   P.titles=P.titles||{};
   const titleGain={};
-  /* 상은 전부 능력치로 돌아온다. 다만 받기 어려운 상일수록 크게. */
-  const bump=(k,lo,hi)=>{
-    if(!k || P.stats[k]==null) return;
-    const g=Math.round(rnd(lo,hi)/(1+Math.max(0,P.stats[k]-17)*0.30)*10)/10;
-    if(g<0.1) return;
-    P.stats[k]=Math.round((P.stats[k]+g)*10)/10;
-    titleGain[k]=Math.round(((titleGain[k]||0)+g)*10)/10;
-  };
-  const mainKey=()=>{
-    const a=(P.type==='hitter'?ARCH_H:ARCH_P).find(x=>x.n===P.arche);
-    return (a&&a.k) || pick(keysOf().map(x=>x[0]));
-  };
   titles.forEach(([t,k])=>{
     P.titles[t]=(P.titles[t]||0)+1;
     P.awards.push({y:P.year,a:t});
-    bump(k, 0.25, 0.55);                       // 개인 타이틀
+    // 보상은 능력치 하나뿐이다. 이것만으로도 노화를 어느 정도 버틴다
+    const g=Math.round(rnd(0.4,0.9)/(1+Math.max(0,P.stats[k]-17)*0.30)*10)/10;
+    P.stats[k]=Math.round((P.stats[k]+g)*10)/10;
+    titleGain[k]=(titleGain[k]||0)+g;
   });
-  awards.forEach(a=>{
-    if(a==='MVP')            bump(mainKey(), 0.80, 1.30);
-    else if(a==='신인왕')     bump(mainKey(), 0.35, 0.65);
-    else if(a==='골든글러브') bump(P.type==='hitter'?'defense':'control', 0.25, 0.50);
-    else if(a==='올스타')     bump(mainKey(), 0.08, 0.20);
-  });
-  if(ps && ps.champ) bump(mainKey(), 0.15, 0.35);                 // 우승
-  if(P.awards.some(a=>a.y===P.year&&a.a==='시리즈 MVP')) bump(mainKey(), 0.45, 0.85);
   if(Object.keys(titleGain).length) P.ovr=calcOvr();
 
   // 국가대표 — 아래 sn 조립 후 실행
@@ -2123,7 +2065,7 @@ function executeSeason(){
   // 그 위에, 가끔 훈련 선택지가 뜬다. 항상은 아니다.
   P.bonusPts = 0;
   const M=meta();
-  const cardOdds = clamp(0.13 + (M.cards-3)*0.045 + (perfScore(stat)>.45?0.07:0) + tAdd('cardUp'), 0, 0.40);
+  const cardOdds = clamp(0.16 + (M.cards-3)*0.05 + (perfScore(stat)>.45?0.08:0) + tAdd('cardUp'), 0, 0.45);
   if(Math.random() < (amateur?0.30:cardOdds)) P.bonusPts = Math.round(Math.min(gp*rnd(.5,.9), 4.2)*10)/10;
 
   const decay = ageDecay();
@@ -2183,7 +2125,7 @@ function growthPoints(s,amateur){
   fw *= (1-relA('formTight')); if(relHas('formWide')) fw*=1.5;
   P.form = clamp((P.form||1) * rnd(1-fw,1+fw*1.08), tHas('formTight')?.70:.42, tHas('formWide')?2.2:1.95);
   const curveAge = (flag('lateBloom') && P.age>29) ? 29 : P.age;
-  let base = rnd(1.34,2.26) * (meta().growMul||1) * interp(GROWTH[P.gtype].curve, curveAge) * P.form;
+  let base = rnd(1.32,2.28) * (meta().growMul||1) * interp(GROWTH[P.gtype].curve, curveAge) * P.form;
   base = relE('growMul', base);
   if(P.age<=25) base = relE('growYoung', base);
   if(P.age>=26) base = relE('growOld', base);
@@ -2218,8 +2160,8 @@ function ageDecay(){
 function resistance(){
   const gap = P.potential - P.ovr;
   const cb  = (P.capBreak || 1) + tAdd('cap');
-  if(gap > 0) return clamp(0.22 + gap/54, .22, 1.40);
-  return (0.11*cb) / (1 + (-gap)*0.40/cb);
+  if(gap > 0) return clamp(0.21 + gap/54, .21, 1.42);
+  return (0.09*cb) / (1 + (-gap)*0.42/cb);
 }
 
 /* 각성형: 조건을 만족한 시즌에 한 번 크게 도약한다 */
@@ -2443,10 +2385,8 @@ function seasonResult(sn, isResume){
         <span class="tv">통산 ${P.awards.filter(x=>x.a===a).length}회</span></div>`).join('')}
       ${Object.keys(sn.titleGain||{}).length
         ? `<div style="padding:10px 13px;background:var(--paper-2);font-size:12.5px">
-            수상 보상 — ${Object.entries(sn.titleGain).map(([k,v])=>
-              `<b>${labelOf(k)} +${v.toFixed(1)}</b>`).join(' · ')}
-            <div style="color:var(--ink-soft);font-size:11.5px;margin-top:3px">
-              받기 어려운 상일수록 크게 돌아옵니다</div></div>` : ''}
+            타이틀 보상 — ${Object.entries(sn.titleGain).map(([k,v])=>
+              `<b>${labelOf(k)} +${v.toFixed(1)}</b>`).join(' · ')}</div>` : ''}
     </div>`;
   }
   if(sn.tourneys){
@@ -2735,8 +2675,8 @@ const EVENTS=[
      {l:'내 공을 던진다',h:'성장 ↑ / 신뢰 ↓',f:p=>({msg:'결과로 증명했다. 관계는 서먹하다.',gp:1.5,trust:-7})}]},
  {t:'9회의 마운드',for:'pitcher',
   d:'한 점 차 9회, 주자 만루에 마운드에 올랐다.',
-  o:[{l:'정면 승부',h:'?',f:p=>Math.random()<.42?{msg:'삼진으로 끝냈다. 구장이 뒤집혔다.',rep:20,trust:10,stat:{stuff:0.5},form:1.15}
-      :{msg:'밀어내기 볼넷. 오래 회자될 장면이다.',rep:-12,form:0.85}},
+  o:[{l:'정면 승부',h:'?',f:p=>Math.random()<.42?{msg:'삼진으로 끝냈다. 구장이 뒤집혔다.',rep:20,trust:10}
+      :{msg:'밀어내기 볼넷. 오래 회자될 장면이다.',rep:-12}},
      {l:'피해 간다',h:'?',f:p=>Math.random()<.48?{msg:'병살로 막았다.',rep:9,trust:6}
       :{msg:'만루에서 안타를 맞았다.',rep:-8}}]},
  {t:'구속 저하',for:'pitcher',
@@ -2746,12 +2686,12 @@ const EVENTS=[
      {l:'기교로 간다',h:'성장 ↑',f:p=>({msg:'완급으로 승부하는 법을 익혔다.',gp:1.1})}]},
  {t:'타격폼 슬럼프 탈출법',for:'hitter',
   d:'선배가 자기 루틴을 알려주겠다고 한다. 내 방식과는 꽤 다르다.',
-  o:[{l:'따라해본다',h:'?',f:p=>Math.random()<.5?{msg:'몸에 맞았다. 타석이 편해졌다.',gp:1.2,stat:{contact:0.6},form:1.12}:{msg:'괜히 헷갈리기만 했다.',stat:{contact:-0.5},form:0.88}},
+  o:[{l:'따라해본다',h:'?',f:p=>Math.random()<.5?{msg:'몸에 맞았다. 타석이 편해졌다.',gp:1.5}:{msg:'괜히 헷갈리기만 했다.',gp:-.5}},
      {l:'내 것을 지킨다',h:'안정',f:p=>({msg:'하던 대로 갔다.',gp:.5,rep:2})}]},
  {t:'배트 교체',for:'hitter',
   d:'새 배트가 손에 감긴다. 무게가 조금 다르다.',
   o:[{l:'가벼운 배트',h:'컨택 ↑',f:p=>({msg:'배트 스피드가 붙었다.',gp:1.0})},
-     {l:'무거운 배트',h:'파워 ↑ / 위험',f:p=>Math.random()<.6?{msg:'타구가 멀리 간다.',stat:{power:0.8},gp:0.6}:{msg:'스윙이 늦어졌다. 손목에 무리가 왔다.',stat:{contact:-0.4},inj:8}}]},
+     {l:'무거운 배트',h:'파워 ↑ / 위험',f:p=>Math.random()<.6?{msg:'타구가 멀리 간다.',gp:1.2}:{msg:'스윙이 늦어졌다.',gp:-.6}}]},
  {t:'좌완 공략',for:'hitter',
   d:'좌투수 상대 성적이 유난히 나쁘다는 지적을 받았다.',
   o:[{l:'전담 훈련',h:'성장 ↑',f:p=>({msg:'약점이 줄었다.',gp:1.3,trust:5})},
@@ -2782,7 +2722,7 @@ const EVENTS=[
      {l:'견제로 버틴다',h:'유지',f:p=>({msg:'임시방편으로 넘겼다.',gp:.4})}]},
  {t:'투구 수 관리',for:'pitcher',
   d:'7회 100구. 감독이 더 던질 수 있겠냐고 묻는다.',
-  o:[{l:'끝까지 간다',h:'신뢰 ↑ / 부상 ↑',f:p=>Math.random()<.7?{msg:'완투했다. 팔은 무겁지만 버텼다.',trust:12,inj:10,rep:6,stat:{stamina:0.5}}:{msg:'완투한 대가로 어깨가 탈이 났다.',trust:10,rep:6,inj:16,miss:0.30,missFrom:'무리한 완투'}},
+  o:[{l:'끝까지 간다',h:'신뢰 ↑ / 부상 ↑',f:p=>({msg:'완투했다. 팔은 무겁다.',trust:12,inj:10,rep:6})},
      {l:'내려온다',h:'관리',f:p=>({msg:'불펜에 넘겼다.',inj:-5,trust:-3})}]},
  {t:'새 포수',for:'pitcher',
   d:'주전 포수가 바뀌었다. 사인 체계부터 다시 맞춰야 한다.',
@@ -2802,15 +2742,15 @@ const EVENTS=[
      {l:'선발로 남는다',h:'성장 ↑',f:p=>({msg:'로테이션을 지키겠다고 했다.',gp:.9,trust:4})}]},
  {t:'스프링캠프',for:'any',
   d:'캠프 명단이 발표됐다. 1군 캠프에 이름이 있다.',
-  o:[{l:'모든 걸 쏟는다',h:'성장 ↑ / 피로',f:p=>({msg:'코칭스태프 눈에 들었다.',gp:1.1,trust:8,inj:5,relic:0.12})},
+  o:[{l:'모든 걸 쏟는다',h:'성장 ↑ / 피로',f:p=>({msg:'코칭스태프 눈에 들었다.',gp:1.3,trust:8,inj:5})},
      {l:'시즌을 보고 조절',h:'관리',f:p=>({msg:'페이스를 길게 잡았다.',inj:-6,gp:.5})}]},
  {t:'연봉 조정 신청',for:'any',
   d:'구단 제시액이 납득되지 않는다. 조정을 신청할 수 있다.',
-  o:[{l:'신청한다',h:'?',f:p=>Math.random()<.45?{msg:'조정에서 이겼다. 연봉이 올랐다.',rep:10,trust:-8,salary:1.22}:{msg:'졌다. 관계만 나빠졌다.',rep:-6,trust:-12,salary:0.96}},
+  o:[{l:'신청한다',h:'?',f:p=>Math.random()<.45?{msg:'조정에서 이겼다.',rep:10,trust:-8}:{msg:'졌다. 관계만 나빠졌다.',rep:-6,trust:-12}},
      {l:'수용한다',h:'신뢰 ↑',f:p=>({msg:'조용히 사인했다.',trust:9})}]},
  {t:'부상 은폐',for:'any',
   d:'통증이 있지만 아무도 모른다. 말하면 라인업에서 빠진다.',
-  o:[{l:'숨긴다',h:'출장 유지 / 위험',f:p=>Math.random()<.55?{msg:'끝까지 버텼다. 아무도 몰랐다.',inj:16,trust:8}:{msg:'끝내 탈이 났다. 더 크게 번졌다.',inj:22,trust:-4,miss:0.28,missFrom:'참고 뛴 통증'}},
+  o:[{l:'숨긴다',h:'출장 유지 / 위험',f:p=>({msg:'경기에는 나갔다.',inj:16,trust:5})},
      {l:'알린다',h:'회복',f:p=>({msg:'조기 치료를 받았다.',inj:-12,trust:-4})}]},
  {t:'유니폼 번호',for:'any',
   d:'팀 레전드가 달던 번호를 물려받겠냐는 제안이 왔다.',
@@ -2827,7 +2767,7 @@ const EVENTS=[
  {t:'감독 교체',for:'any',
   d:'새 감독이 부임했다. 기존 주전들을 다시 본다고 한다.',
   o:[{l:'적극적으로 어필',h:'신뢰 ↑ / 위험',f:p=>Math.random()<.55?{msg:'눈도장을 찍었다.',trust:14}:{msg:'나댄다는 소리를 들었다.',trust:-9}},
-     {l:'묵묵히 한다',h:'안정',f:p=>({msg:'훈련으로 보여주기로 했다. 기대치도 낮아졌다.',gp:.8,trust:3,goalEase:0.12})}]},
+     {l:'묵묵히 한다',h:'안정',f:p=>({msg:'훈련으로 보여주기로 했다.',gp:.8,trust:3})}]},
  {t:'가족',for:'any',
   d:'집안에 일이 생겼다. 시즌 중이라 오래 자리를 비우기 어렵다.',
   o:[{l:'다녀온다',h:'회복 / 출장 ↓',f:p=>({msg:'마음을 추스르고 돌아왔다.',inj:-8,gp:-.3})},
@@ -2904,7 +2844,7 @@ function maybeInjury(next){
   window.__injNext=next; go('s-event');
 }
 function maybeEvent(next){
-  if(Math.random() >= .17){ next(); return; }
+  if(Math.random() >= .30){ next(); return; }
   const pool=EVENTS.filter(x=>!x.for || x.for===P.type);
   const e=pick(pool);
   slate('ev');
@@ -2916,70 +2856,23 @@ function maybeEvent(next){
       <b>${o.l}</b><span>영향: ${o.h}</span></button>`).join('')}`;
   window.__evNext=next; go('s-event');
 }
-/* 선택의 결과는 숫자만이 아니다.
-   특성이 붙기도, 유물이 남기도, 몸이 상하기도, 자리가 바뀌기도 한다. */
 function chooseEvent(ei,oi){
   const e=EVENTS[ei], r=e.o[oi].f(P);
-  const extra=[];
-
   if(r.gp)   P.growthPts=Math.max(0,Math.round((P.growthPts+r.gp)*10)/10);
   if(r.inj)  P.injury=clamp(P.injury+r.inj,0,50);
   if(r.rep)  P.rep=clamp(P.rep+r.rep,0,100);
   if(r.trust)P.trust=clamp(P.trust+r.trust,0,100);
-
-  // 능력치가 직접 움직인다
-  if(r.stat){ for(const k in r.stat){ if(P.stats[k]==null) continue;
-    const d=Math.round(r.stat[k]*10)/10;
-    P.stats[k]=Math.max(1,Math.round((P.stats[k]+d)*10)/10);
-    extra.push({n:labelOf(k), v:(d>0?'+':'')+d.toFixed(1), good:d>0}); } }
-  // 잠재력이 열린다
-  if(r.pot){ P.potential=clamp(P.potential+r.pot,36,99);
-    extra.push({n:'잠재력', v:(r.pot>0?'+':'')+r.pot, good:r.pot>0}); }
-  // 흐름이 바뀐다
-  if(r.form){ P.form=clamp((P.form||1)*r.form,.45,2.0);
-    extra.push({n:'흐름', v:r.form>1?'좋아짐':'가라앉음', good:r.form>1}); }
-  // 겨울 훈련 기회가 하나 더 생긴다
-  if(r.card){ P.bonusPts=Math.round(((P.bonusPts||0)+r.card)*10)/10;
-    extra.push({n:'훈련 기회', v:'추가', good:true}); }
-  // 다음 시즌을 일부 비운다
-  if(r.miss){ P.missNext=Math.max(P.missNext||0, r.miss); P.missFrom=r.missFrom||'이번 겨울의 일';
-    extra.push({n:'다음 시즌 결장', v:Math.round(r.miss*100)+'%', good:false}); }
-  // 연봉이 움직인다
-  if(r.salary && P.salary){ P.salary=Math.max(3000,Math.round(P.salary*r.salary/100)*100);
-    extra.push({n:'연봉', v:fmtMoney(P.salary)+' 원', good:r.salary>1}); }
-  // 목표가 조정된다
-  if(r.goalEase && P.goal){ P.goal=P.goal.map(g=>g.r?g:{...g, v:Math.max(1,Math.round(g.v*(1-r.goalEase)))});
-    extra.push({n:'구단 목표', v:'낮아짐', good:true}); }
-  // 특성이 붙는다
-  if(r.trait){
-    const owned=(P.traits||[]).map(t=>t.id);
-    const pool=TRAITS.filter(t=>!owned.includes(t.id) && (t.for==='any'||t.for===P.type));
-    if(pool.length && (P.traits||[]).length<traitSlots()){
-      const t=pick(pool); P.traits=[...(P.traits||[]), t];
-      extra.push({n:'특성 획득', v:t.n, good:true});
-    }
-  }
-  // 몸에 무언가 남는다 — 유물 기회
-  let relicAfter=false;
-  if(r.relic && Math.random()<r.relic) relicAfter=true;
-
-  P.ovr=calcOvr(); save();
-  const cont=relicAfter
-    ? `offerRelics(window.__evNext||renderOffseason,{from:'${(e.t||'').replace(/'/g,'')}',lucky:false,n:2,title:'몸이 달라졌다',lede:'그 일이 무언가를 남겼습니다.'})`
-    : `(window.__evNext||renderOffseason)()`;
+  save();
   document.getElementById('ev-body').innerHTML=`
     <p class="eyebrow">결과</p><h2 class="title">${e.t}</h2>
-    <div class="note ${(r.inj>0||r.miss)?'red':''}">${r.msg}</div>
+    <div class="note">${r.msg}</div>
     <div class="sheet"><div class="bd">
       ${r.gp?`<div class="stub"><b>성장 포인트</b><span class="num">${r.gp>0?'+':''}${r.gp}</span></div>`:''}
       ${r.inj?`<div class="stub"><b>부상 위험</b><span class="num">${r.inj>0?'+':''}${r.inj}</span></div>`:''}
       ${r.rep?`<div class="stub"><b>평판</b><span class="num">${r.rep>0?'+':''}${r.rep}</span></div>`:''}
       ${r.trust?`<div class="stub"><b>팀 신뢰</b><span class="num">${r.trust>0?'+':''}${r.trust}</span></div>`:''}
-      ${extra.map(x=>`<div class="stub"><b>${x.n}</b>
-        <span class="num" style="color:${x.good?'var(--blue)':'var(--red)'};font-weight:700">${x.v}</span></div>`).join('')}
     </div></div>
-    ${relicAfter?`<div class="note" style="border-color:var(--gold)">몸에 무언가 남았습니다.</div>`:''}
-    <button class="btn" onclick="${cont}">계속</button>`;
+    <button class="btn" onclick="(window.__evNext||renderOffseason)()">계속</button>`;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -3020,46 +2913,17 @@ function takeGrow(i){
   const c=P.__cards[i], ti=rollTier(c.risk), T=TIERS[ti];
   const pool=P.bonusPts;
   const gained={};
-  /* 한 장의 훈련이 만들 수 있는 변화에는 총량 한계가 있다.
-     여러 능력치에 나눠 걸리는 카드가 항목마다 상한을 따로 받아
-     합쳐서 폭주하던 문제를 막는다. */
-  const PER_CAP = 2.4;                  // 능력치 하나가 한 번에 오를 수 있는 한계
-  const TOTAL_CAP = 3.6 * T.m;          // 판정이 좋을수록 총량 한계도 커진다
-  const raw={};
   Object.entries(c.split).forEach(([k,w])=>{
-    if(ti===4){ raw[k] = -Math.min(P.stats[k]*0.06, pool*w*0.5)*(flag('disasterHalf')?0.5:1); return; }
-    if(ti===3){ raw[k] = -Math.min(P.stats[k]*0.015, pool*w*0.18)*(flag('disasterHalf')?0.5:1); return; }
     let v=pool*w*T.m;
-    v *= 1/(1+Math.max(0,P.stats[k]-17)*0.30);   // 높이 올라갈수록 효율이 줄어든다
-    raw[k]=Math.min(v, PER_CAP);
-  });
-  if(ti<3){
-    const sum=Object.values(raw).reduce((a,b)=>a+b,0);
-    if(sum>TOTAL_CAP){ const f=TOTAL_CAP/sum; for(const k in raw) raw[k]*=f; }
-  }
-  Object.entries(raw).forEach(([k,v])=>{
+    // 높이 올라갈수록 같은 훈련으로 얻는 게 줄어든다 (기본 성장과 같은 규칙)
+    v *= 1/(1+Math.max(0,P.stats[k]-17)*0.30);
+    v = Math.min(v, 3.2);                       // 한 번의 훈련이 뒤집을 수 있는 한계
+    if(ti===4) v=-Math.min(P.stats[k]*0.06, pool*w*0.5)*(flag('disasterHalf')?0.5:1);
     if(Math.abs(v)>=0.05){ gained[k]=Math.round(v*10)/10; P.stats[k]=Math.round((P.stats[k]+gained[k])*10)/10; }
   });
-  // 대가가 붙는 카드들
-  if(c.trade && ti<3){
-    const [give]=c.trade;
-    const d=Math.round(Math.min(P.stats[give]*0.16, pool*0.55)*10)/10;
-    if(d>=0.1){ P.stats[give]=Math.max(1,Math.round((P.stats[give]-d)*10)/10);
-      gained[give]=Math.round(((gained[give]||0)-d)*10)/10; }
-  }
-  if(c.heal)  P.injury=clamp(P.injury-c.heal-(ti===0?6:0),0,60);
-  if(c.inj)   P.injury=clamp(P.injury+(ti===4?c.inj*1.6:c.inj),0,60);
-  if(c.trust) P.trust=clamp(P.trust+(ti===0?c.trust*1.5:c.trust),0,100);
-  if(c.form)  P.form=clamp((P.form||1)*c.form,.45,2.0);
-  if(c.potUp && ti<3){
-    const up=Math.round(c.potUp*(ti===0?1.6:1));
-    P.potential=clamp(P.potential+up, 36, 99); P.__potUp=up;
-  }
-  if(T.form) P.form=clamp((P.form||1)*T.form,.45,2.0);
   if(ti===4){ P.form=clamp((P.form||1)*(flag('disasterHalf')?0.89:0.78),.45,2.0); }
   if(ti===0){ P.form=clamp((P.form||1)*1.12,.45,2.0); }
   P.bonusPts=0; P.ovr=calcOvr(); save();
-  const __pu=P.__potUp; P.__potUp=0;
   document.getElementById('gw-body').innerHTML=`
     <p class="eyebrow">판정</p>
     <h2 class="title" style="color:${T.c}">${T.n}</h2>
@@ -3071,11 +2935,6 @@ function takeGrow(i){
           ${v>0?'+':''}${v.toFixed(1)}</span></div>`).join('')
         || '<div class="empty">변화가 거의 없었습니다.</div>'}
     </div></div>
-    ${__pu?`<div class="note" style="border-color:var(--gold)"><b>잠재력 +${__pu}</b> — 도달할 수 있는 천장이 올라갔습니다.</div>`:''}
-    ${c.heal?`<div class="note">몸을 추슬렀습니다. 부상 위험이 줄었습니다.</div>`:''}
-    ${c.inj?`<div class="note red">무리한 만큼 몸에 부담이 쌓였습니다.</div>`:''}
-    ${c.trust?`<div class="note">구단이 태도를 좋게 봤습니다.</div>`:''}
-    ${ti===3?'<div class="note red">겨울을 헛되이 보냈습니다. 오히려 감이 떨어졌습니다.</div>':''}
     ${ti===4?'<div class="note red">무리한 훈련이 몸을 상하게 했습니다. 흐름도 나빠졌습니다.</div>':''}
     ${ti===0?'<div class="note">기대 이상이었습니다. 좋은 흐름이 이어집니다.</div>':''}
     <div class="sheet"><div class="bd" style="display:flex;justify-content:space-between;align-items:center">
@@ -3770,37 +3629,27 @@ function rollHighlights(sn, stat){
   return out;
 }
 
-/* 시즌 성과가 유물을 부른다.
-   무엇을 이뤘느냐에 따라 확률이 다르다 — MVP와 홀드왕이 같을 수 없다. */
-const RELIC_ODDS={
-  'MVP':0.52, '시리즈 MVP':0.40, '신인왕':0.30,
-  '홈런왕':0.30, '타격왕':0.30, '평균자책왕':0.30, '다승왕':0.28,
-  '탈삼진왕':0.24, '타점왕':0.22, '최다안타':0.22, '구원왕':0.22,
-  '출루왕':0.18, '장타율왕':0.18, '득점왕':0.16, '최다이닝':0.16,
-  '도루왕':0.16, '승률왕':0.14, '홀드왕':0.14, '구원 평균자책':0.14,
-  '골든글러브':0.14, '올스타':0.05
-};
-const RELIC_BIG={ gold:0.46, war:0.30, champ:0.22, breakout:0.22, chance:0.04 };
+/* 시즌 성과가 유물을 부른다 */
 function maybeRelic(next){
   const sn=P.seasons[P.seasons.length-1];
   if(!sn || sn.military){ next(); return; }
-  const cand=[];
-  (sn.titles||[]).forEach(([t])=>cand.push({p:RELIC_ODDS[t]||0.18, from:t, lucky:true}));
-  (sn.awards||[]).forEach(a=>cand.push({p:RELIC_ODDS[a]||0.12, from:a, lucky:a==='MVP'}));
-  if((sn.natlList||[]).some(x=>x.gold)) cand.push({p:RELIC_BIG.gold, from:'국제대회 금메달', lucky:true});
-  if((sn.war||0)>=5)  cand.push({p:RELIC_BIG.war, from:'특별한 시즌', lucky:true});
-  if(sn.champ)        cand.push({p:RELIC_BIG.champ, from:'우승', lucky:false});
-  if(sn.breakout)     cand.push({p:RELIC_BIG.breakout, from:'한 시즌 만의 도약', lucky:false});
-  if(sn.level==='major') cand.push({p:RELIC_BIG.chance, from:'우연한 계기', lucky:false});
-  if(!cand.length){ next(); return; }
-  // 여러 성과가 겹치면 가장 큰 것 하나에, 나머지는 아주 조금만 얹는다
-  cand.sort((a,b)=>b.p-a.p);
-  const best=cand[0];
-  const extra=cand.slice(1).reduce((a,c)=>a+c.p*0.18, 0);
-  const p=Math.min(0.58, (best.p+extra)*1.15) * (1+(meta().relicLuck||0)*0.5);
-  if(Math.random()>p){ next(); return; }
-  offerRelics(next, {from:best.from, lucky:best.lucky, n: best.lucky?3:2,
-    title:'몸이 달라졌다', lede:'이 성취가 선수에게 무언가를 남겼습니다.'});
+  const titles=(sn.titles||[]).length, awards=(sn.awards||[]).length;
+  const gold=(sn.natlList||[]).some(x=>x.gold);
+  const big=(sn.war||0)>=5;
+  // 확정 경로 — 큰 성취
+  if(sn.champ || titles>0 || awards.some?false:false){}
+  let lucky=false, from=null;
+  if(titles>0){ from='타이틀 획득'; lucky=true; }
+  else if(sn.champ){ from='우승'; lucky=true; }
+  else if(gold){ from='국제대회 금메달'; lucky=true; }
+  else if(big){ from='특별한 시즌'; lucky=true; }
+  else if(awards>0){ from='수상'; }
+  else if(sn.breakout){ from='한 시즌 만의 도약'; }
+  else if(Math.random()<0.07 && sn.level==='major'){ from='우연한 계기'; }
+  if(!from){ next(); return; }
+  offerRelics(next, {from, lucky, n: lucky?3:2,
+    title:'몸이 달라졌다',
+    lede:'이 성취가 선수에게 무언가를 남겼습니다.'});
 }
 
 /* ── 유물 획득 화면 ───────────────────────────────────────── */
@@ -3987,7 +3836,7 @@ function maybeRivalEvent(next){
   if(Math.abs(diff)<=3 && P.seasons.filter(x=>!x.amateur).length>=3) pool.push('close');
   if(R.role&&R.role.startsWith('1군')&&P.level==='minor') pool.push('gap');
   if(R.titles>0 && !Object.keys(P.titles||{}).length) pool.push('title');
-  if(!pool.length || Math.random()>0.15){ next(); return; }
+  if(!pool.length || Math.random()>0.30){ next(); return; }
   const kind=pick(pool);
   const EV={
     behind:{t:'앞서가는 동기',
@@ -4088,15 +3937,15 @@ function projectSeason(){
   if(P.type==='hitter'){
     const games=Math.round((minor?128:144)*({'2군':.80,'백업':.64,'주전':.95,'핵심':.99}[st.role]||.9)*dur*0.97);
     const pa=Math.round(paFor(st.role, games));
-    const bbR=clamp(0.026+s.eye*0.0057-lv*.2+(tAdd('obp')+relA('obp'))*0.6,.012,.24);
+    const bbR=clamp(0.028+s.eye*0.0060-lv*.2+(tAdd('obp')+relA('obp'))*0.6,.015,.26);
     const bb=Math.round(pa*bbR), hbp=Math.round(pa*.008), sf=Math.round(pa*.007);
     const ab=Math.max(1,pa-bb-hbp-sf);
-    const soR=clamp(0.336-s.contact*0.0069-s.eye*0.0021+lv*0.5,.07,.40);
+    const soR=clamp(0.328-s.contact*0.0072-s.eye*0.0022+lv*0.5,.06,.38);
     const so=Math.round(ab*soR);
-    const hrR=Math.pow(Math.max(s.power,1),1.51)*0.285/600*(1-lv*1.6)*tMul('hr',1)*(RE().e.hrMul||1)*Math.pow(E.off,1.5);
+    const hrR=Math.pow(Math.max(s.power,1),1.50)*0.32/600*(1-lv*1.6)*tMul('hr',1)*(RE().e.hrMul||1)*Math.pow(E.off,1.5);
     const hr=Math.round(hrR*ab);
     const bip=Math.max(0,ab-so-hr);
-    const babip=clamp(0.228+s.contact*0.0045+s.speed*0.0017+(tAdd('avg')+relA('avg'))*1.5,.15,.37)*Math.pow(E.off,0.45);
+    const babip=clamp(0.232+s.contact*0.0046+s.speed*0.0018+(tAdd('avg')+relA('avg'))*1.5,.16,.38)*Math.pow(E.off,0.45);
     const bipH=Math.round(bip*babip), h=Math.min(ab,bipH+hr);
     const d2=Math.round(bipH*clamp(0.175+s.power*0.0045,.10,.34));
     const d3=Math.round(bipH*clamp(0.004+s.speed*0.0016,0,.045));
@@ -4120,9 +3969,9 @@ function projectSeason(){
   const base=(starter?(st.role==='2군'?112:st.role==='백업'?104:st.role==='핵심'?172:150)
                      :(st.role==='2군'?56:st.role==='백업'?47:st.role==='핵심'?70:61))*bulk;
   const ip=Math.max(6,Math.round(base*dur*0.98*tMul('ip',1)*(RE().e.ipMul||1)));
-  const era=clamp((7.72-(s.stuff*.104+s.control*.082+s.breaking*.058+s.velo*.042)
+  const era=clamp((7.40-(s.stuff*.105+s.control*.085+s.breaking*.062+s.velo*.045)
     +lv*9+tAdd('era')+relA('era'))*Math.pow(E.off,0.8),1.05,9.50);
-  const k9=clamp(2.3+s.stuff*.26+s.breaking*.15+tAdd('k9')+relA('k9'),2,15);
+  const k9=clamp(2.6+s.stuff*.28+s.breaking*.16+tAdd('k9')+relA('k9'),2,15);
   const so=Math.round(ip*k9/9);
   const h9=clamp(11.0-s.stuff*.16,4,14), bb9=clamp(5.6-s.control*.30,1,8);
   const whip=(ip*h9/9+ip*bb9/9)/Math.max(ip,1);
@@ -4676,34 +4525,6 @@ function enshrine(keep){
     noInjury: st.noInjury + ((proAll.length>=10 && !P.seasons.some(x=>x.missFrom))?1:0),
     oneClub: st.oneClub + ((majorsOnly.length>=12 && new Set(proAll.map(x=>x.team)).size===1)?1:0),
     manyTeams: st.manyTeams + (new Set(proAll.map(x=>x.team)).size>=4?1:0),
-    bestH: Math.max(st.bestH, ...majorsOnly.map(x=>x.stat.h||0), 0),
-    bestRbi: Math.max(st.bestRbi, ...majorsOnly.map(x=>x.stat.rbi||0), 0),
-    bestSb: Math.max(st.bestSb, ...majorsOnly.map(x=>x.stat.sb||0), 0),
-    bestOps: Math.max(st.bestOps, ...majorsOnly.filter(x=>(x.stat.pa||0)>430).map(x=>x.stat.ops||0), 0),
-    bestIp: Math.max(st.bestIp, ...majorsOnly.map(x=>x.stat.ip||0), 0),
-    bestW: Math.max(st.bestW, ...majorsOnly.map(x=>x.stat.w||0), 0),
-    bestSo: Math.max(st.bestSo, ...majorsOnly.map(x=>x.stat.so||0), 0),
-    bestCareerWar: Math.max(st.bestCareerWar, careerWar()),
-    bestLegacy: Math.max(st.bestLegacy, L.total||0),
-    maxTrust: Math.max(st.maxTrust, P.trust||0),
-    maxRep: Math.max(st.maxRep, P.rep||0),
-    maxSalary: Math.max(st.maxSalary, ...P.seasons.map(x=>x.salary||0), P.salary||0),
-    psCount: st.psCount + P.seasons.filter(x=>x.ps).length,
-    ksCount: st.ksCount + P.seasons.filter(x=>x.ps&&x.ps.steps.some(y=>y.n==='한국시리즈')).length,
-    injuries: st.injuries + P.seasons.filter(x=>x.missFrom).length,
-    longMinor: st.longMinor + ((()=>{ let run=0,mx=0;
-      proAll.forEach(x=>{ if(x.level==='minor'&&!x.calledUp){run++;mx=Math.max(mx,run)} else run=0 });
-      return mx>=6 && proAll.some(x=>x.level==='major'&&(x.role==='주전'||x.role==='핵심')) ?1:0 })()),
-    lateTitle: st.lateTitle + (P.awards.some(a=>{
-      const sn=P.seasons.find(x=>x.y===a.y); return sn && sn.age>=30 && (sn.titles||[]).length; })?1:0),
-    extended: st.extended + (P.extended||0),
-    noMil: st.noMil + (P.military==='none'?1:0),
-    goalHitTotal: st.goalHitTotal + (P.goalHit||0),
-    tripleCrown: st.tripleCrown + (P.seasons.some(x=>(x.titles||[]).length>=3)?1:0),
-    bestMvpOne: Math.max(st.bestMvpOne, P.awards.filter(a=>a.a==='MVP').length),
-    perfectRun: st.perfectRun + ((careerWar()>=80
-      && Object.values(P.titles||{}).reduce((a,b)=>a+b,0)>=10 && P.champs>=3)?1:0),
-    noInjury15: st.noInjury15 + ((majorsOnly.length>=15 && !P.seasons.some(x=>x.missFrom))?1:0),
     majorSeasons: st.majorSeasons + pro.filter(x=>x.level==='major'&&!x.military).length,
     bestOvr: Math.max(st.bestOvr, Math.max(...P.seasons.map(x=>x.ovrAfter))),
     titles: st.titles + Object.values(P.titles||{}).reduce((a,b)=>a+b,0),
@@ -4819,7 +4640,7 @@ function autoRoster(n){
   const slots=slotsFor(n);
   // 9인 편성은 저장된 라인업을 그대로 쓴다
   if(n>=9){
-    const saved=roster().filter(Boolean);
+    const saved=(meta().roster||[]).filter(id=>hall().some(x=>x.id===id));
     if(saved.length>=n) return saved.slice(0,n);
   }
   return bestFit(slots);
@@ -4839,16 +4660,7 @@ function slotsFor(n){
 
 /* ── 팀 편성 ──────────────────────────────────────────── */
 let teamSlot=null;
-/* 자리 번호가 곧 포지션이다. 빈 자리는 null로 남겨 순서가 밀리지 않게 한다. */
-function roster(){
-  const h=hall(), raw=meta().roster||[];
-  const out=[];
-  for(let i=0;i<9;i++){
-    const id=raw[i];
-    out.push((id && h.some(x=>x.id===id)) ? id : null);
-  }
-  return out;
-}
+function roster(){ return (meta().roster||[]).filter(id=>hall().some(x=>x.id===id)) }
 function setRoster(a){ const m=meta(); m.roster=a; setMeta(m) }
 function renderTeam(){
   const h=hall(), slots=SLOTS9, r=roster();
@@ -4897,7 +4709,7 @@ function autoFill(){
       if(v>bv){ bv=v; best=x } });
     if(best){ used.add(best.id); out.push(best.id) } else out.push(null);
   });
-  setRoster(out); renderTeam();     // 빈 자리도 그대로 유지
+  setRoster(out.filter(Boolean).length?out:[]); renderTeam();
 }
 function pickSlot(i){
   teamSlot=i;
@@ -4934,7 +4746,8 @@ function clearSlot(i){
   r[i]=null; setRoster(r); renderTeam();
 }
 function assign(id){
-  const r=roster();                  // 항상 9칸
+  const r=[...roster()];
+  while(r.length<9) r.push(null);
   const prev=r.indexOf(id);
   if(prev>=0) r[prev]=r[teamSlot]||null;
   r[teamSlot]=id;
@@ -5228,11 +5041,7 @@ function mstats(){ return Object.assign({plays:0,majorSeasons:0,bestOvr:0,titles
   fa:0,released:0,milActive:0,milSangmu:0,college:0,pitchers:0,hitters:0,
   longCareer:0,cleared:0,traitFull:0,noMinor:0,posMoved:0,
   legendRelic:0,relCombo:0,relSet3:0,goalAll:0,goalDream:0,smvp:0,highlights:0,
-  nohit:0,cycle:0,rivalWin:0,rivalFar:0,noInjury:0,oneClub:0,manyTeams:0,
-  bestH:0,bestRbi:0,bestSb:0,bestOps:0,bestIp:0,bestW:0,bestSo:0,
-  bestCareerWar:0,bestLegacy:0,maxTrust:0,maxRep:0,maxSalary:0,
-  psCount:0,ksCount:0,injuries:0,longMinor:0,lateTitle:0,extended:0,noMil:0,
-  goalHitTotal:0,tripleCrown:0,bestMvpOne:0,perfectRun:0,noInjury15:0}, meta().stats||{}) }
+  nohit:0,cycle:0,rivalWin:0,rivalFar:0,noInjury:0,oneClub:0,manyTeams:0}, meta().stats||{}) }
 function bumpStats(f){
   const m=meta(), st=f(mstats());
   // 숫자가 아닌 값이 섞이면 이후 업적 판정이 전부 막힌다
@@ -5243,188 +5052,113 @@ function bumpStats(f){
 
 const ACHIEVE=[
  // ── 시작 ──
- {id:'first',  n:'첫 은퇴',      d:'선수 한 명을 끝까지 데려가기',   c:s=>s.plays>=1,  tp:1, r:'후보 다시 뽑기 +1', inc:{candRerolls:1}},
- {id:'play3',  n:'세 번째 인생',  d:'선수 3명 은퇴',                c:s=>s.plays>=3,  tp:1, r:'훈련 카드 +1', inc:{cards:1}},
- {id:'play10', n:'열 번의 삶',    d:'선수 30명 은퇴',               c:s=>s.plays>=30, tp:2, r:'잠재력 +3', inc:{potBonus:1}},
- {id:'both',   n:'양손잡이',      d:'타자와 투수를 각각 한 명씩 은퇴', c:s=>s.hitters>=1&&s.pitchers>=1, tp:1, r:'훈련 리롤 +1', inc:{rerolls:1}},
- {id:'debut',  n:'1군 데뷔',     d:'1군에서 한 시즌이라도 뛰기',     c:s=>s.majorSeasons>=1, tp:1, r:'스페셜 등급 개방', set:{gradeLevel:1}},
- {id:'nominor',n:'즉시 전력',     d:'데뷔 시즌을 1군에서 시작',       c:s=>s.noMinor>=1, tp:1, r:'드래프트 순번 상승', inc:{draftBoost:1}},
+ {id:'first',  n:'첫 은퇴',      d:'선수 한 명을 끝까지 데려가기',   c:s=>s.plays>=1,  tp:2, r:'후보 다시 뽑기 +1', inc:{candRerolls:1}},
+ {id:'play3',  n:'세 번째 인생',  d:'선수 3명 은퇴',                c:s=>s.plays>=3,  tp:2, r:'훈련 카드 +1', inc:{cards:1}},
+ {id:'play10', n:'열 번의 삶',    d:'선수 20명 은퇴',               c:s=>s.plays>=20, tp:3, r:'잠재력 +3', inc:{potBonus:2}},
+ {id:'both',   n:'양손잡이',      d:'타자와 투수를 각각 한 명씩 은퇴', c:s=>s.hitters>=1&&s.pitchers>=1, tp:2, r:'훈련 리롤 +1', inc:{rerolls:1}},
+ {id:'debut',  n:'1군 데뷔',     d:'1군에서 한 시즌이라도 뛰기',     c:s=>s.majorSeasons>=1, tp:2, r:'스페셜 등급 개방', set:{gradeLevel:1}},
+ {id:'nominor',n:'즉시 전력',     d:'데뷔 시즌을 1군에서 시작',       c:s=>s.noMinor>=1, tp:2, r:'드래프트 순번 상승', inc:{draftBoost:1}},
 
  // ── 성장 ──
- {id:'stay5',  n:'버텨낸 다섯 해',d:'1군 통산 8시즌',               c:s=>s.majorSeasons>=8,  tp:1, r:'훈련 리롤 +1', inc:{rerolls:1}},
- {id:'stay30', n:'서른 시즌',     d:'1군 통산 130시즌 누적',          c:s=>s.majorSeasons>=130, tp:3, r:'성장 속도 +4%', inc:{growMul:0.01}},
- {id:'long15', n:'한 우물',       d:'한 선수로 1군 20시즌',          c:s=>s.longCareer>=20,   tp:3, r:'노화 저항 계열 등장률 상승', inc:{lateOdds:0.25}},
- {id:'ovr65',  n:'주전의 몸',    d:'OVR 65 달성',                  c:s=>s.bestOvr>=65, tp:1, r:'잠재력 +3', inc:{potBonus:1}},
- {id:'ovr75',  n:'리그의 중심',   d:'OVR 75 달성',                  c:s=>s.bestOvr>=75, tp:2, r:'훈련 대실패 확률 감소', set:{noDisaster:true}},
- {id:'ovr85',  n:'경지',        d:'OVR 85 달성',                   c:s=>s.bestOvr>=85, tp:3, r:'잠재력 +4', inc:{potBonus:1}},
- {id:'ovr92',  n:'전인미답',     d:'OVR 92 달성',                   c:s=>s.bestOvr>=92, tp:4, r:'성장 속도 +6%', inc:{growMul:0.03}},
- {id:'traitF', n:'다재다능',     d:'선수 특성을 슬롯 끝까지 채우기',   c:s=>s.traitFull>=1, tp:1, r:'전력 분석 개방', set:{preview:true}},
+ {id:'stay5',  n:'버텨낸 다섯 해',d:'1군 통산 5시즌',               c:s=>s.majorSeasons>=5,  tp:2, r:'훈련 리롤 +1', inc:{rerolls:1}},
+ {id:'stay30', n:'서른 시즌',     d:'1군 통산 80시즌 누적',          c:s=>s.majorSeasons>=80, tp:4, r:'성장 속도 +4%', inc:{growMul:0.02}},
+ {id:'long15', n:'한 우물',       d:'한 선수로 1군 18시즌',          c:s=>s.longCareer>=18,   tp:4, r:'노화 저항 계열 등장률 상승', inc:{lateOdds:0.25}},
+ {id:'ovr65',  n:'주전의 몸',    d:'OVR 65 달성',                  c:s=>s.bestOvr>=65, tp:2, r:'잠재력 +3', inc:{potBonus:2}},
+ {id:'ovr75',  n:'리그의 중심',   d:'OVR 75 달성',                  c:s=>s.bestOvr>=75, tp:3, r:'훈련 대실패 제거', set:{noDisaster:true}},
+ {id:'ovr85',  n:'경지',        d:'OVR 85 달성',                   c:s=>s.bestOvr>=85, tp:4, r:'잠재력 +4', inc:{potBonus:2}},
+ {id:'ovr92',  n:'전인미답',     d:'OVR 92 달성',                   c:s=>s.bestOvr>=92, tp:6, r:'성장 속도 +6%', inc:{growMul:0.04}},
+ {id:'traitF', n:'다재다능',     d:'선수 특성을 슬롯 끝까지 채우기',   c:s=>s.traitFull>=1, tp:2, r:'전력 분석 개방', set:{preview:true}},
 
  // ── 성적 ──
- {id:'war30',  n:'꾸준함의 값',   d:'통산 WAR 100 누적',             c:s=>s.war>=100,   tp:1, r:'성장 속도 +4%', inc:{growMul:0.01}},
- {id:'war100', n:'한 시대',      d:'통산 WAR 420 누적',            c:s=>s.war>=420,  tp:4, r:'전설 등급 개방', set:{gradeLevel:4}},
- {id:'war8',   n:'미친 시즌',     d:'한 시즌 WAR 9 달성',           c:s=>s.bestWar>=9, tp:3, r:'훈련 대성공 확률 상승', inc:{critUp:3}},
- {id:'hr40',   n:'대포',         d:'한 시즌 45홈런',               c:s=>s.bestHr>=45, tp:2, r:'잠재력 +3', inc:{potBonus:1}},
- {id:'avg350', n:'교타의 정점',   d:'한 시즌 타율 .360',            c:s=>s.bestAvg>=.360, tp:2, r:'훈련 카드 +1', inc:{cards:1}},
- {id:'era199', n:'1점대',        d:'한 시즌 ERA 1.80 미만 (120이닝+)',  c:s=>s.bestEra<1.80, tp:3, r:'수상 경쟁력 +10%', inc:{awardMod:0.06}},
- {id:'sv40',   n:'철벽',         d:'한 시즌 45세이브',             c:s=>s.bestSv>=45, tp:2, r:'국대 선발 +10%', inc:{natlMod:0.06}},
- {id:'hits2000',n:'5000안타',   d:'통산 8000안타 누적',            c:s=>s.hits>=8000, tp:3, r:'Legacy Score +6%', inc:{legacyMul:0.02}},
- {id:'hr300',  n:'800홈런',     d:'통산 1300홈런 누적',             c:s=>s.hr>=1300,   tp:3, r:'Legacy Score +6%', inc:{legacyMul:0.02}},
- {id:'wins150',n:'420승',       d:'통산 650승 누적',               c:s=>s.wins>=650, tp:3, r:'Legacy Score +6%', inc:{legacyMul:0.02}},
- {id:'so2000', n:'5000탈삼진',  d:'통산 8000탈삼진 누적',          c:s=>s.so>=8000,  tp:3, r:'훈련 리롤 +1', inc:{rerolls:1}},
- {id:'sb200',  n:'대도',         d:'통산 1000도루 누적',             c:s=>s.sb>=1000,   tp:1, r:'후보 다시 뽑기 +1', inc:{candRerolls:1}},
+ {id:'war30',  n:'꾸준함의 값',   d:'통산 WAR 60 누적',             c:s=>s.war>=60,   tp:2, r:'성장 속도 +4%', inc:{growMul:0.02}},
+ {id:'war100', n:'한 시대',      d:'통산 WAR 260 누적',            c:s=>s.war>=260,  tp:5, r:'전설 등급 개방', set:{gradeLevel:4}},
+ {id:'war8',   n:'미친 시즌',     d:'한 시즌 WAR 8 달성',           c:s=>s.bestWar>=8, tp:4, r:'훈련 대성공 확률 상승', inc:{critUp:3}},
+ {id:'hr40',   n:'대포',         d:'한 시즌 40홈런',               c:s=>s.bestHr>=40, tp:3, r:'잠재력 +3', inc:{potBonus:2}},
+ {id:'avg350', n:'교타의 정점',   d:'한 시즌 타율 .350',            c:s=>s.bestAvg>=.350, tp:3, r:'훈련 카드 +1', inc:{cards:1}},
+ {id:'era199', n:'1점대',        d:'한 시즌 ERA 1점대 (120이닝+)',  c:s=>s.bestEra<2.00, tp:4, r:'수상 경쟁력 +10%', inc:{awardMod:0.06}},
+ {id:'sv40',   n:'철벽',         d:'한 시즌 40세이브',             c:s=>s.bestSv>=40, tp:3, r:'국대 선발 +10%', inc:{natlMod:0.06}},
+ {id:'hits2000',n:'5000안타',   d:'통산 5000안타 누적',            c:s=>s.hits>=5000, tp:4, r:'Legacy Score +6%', inc:{legacyMul:0.03}},
+ {id:'hr300',  n:'800홈런',     d:'통산 800홈런 누적',             c:s=>s.hr>=800,   tp:4, r:'Legacy Score +6%', inc:{legacyMul:0.03}},
+ {id:'wins150',n:'420승',       d:'통산 420승 누적',               c:s=>s.wins>=420, tp:4, r:'Legacy Score +6%', inc:{legacyMul:0.03}},
+ {id:'so2000', n:'5000탈삼진',  d:'통산 5000탈삼진 누적',          c:s=>s.so>=5000,  tp:4, r:'훈련 리롤 +1', inc:{rerolls:1}},
+ {id:'sb200',  n:'대도',         d:'통산 600도루 누적',             c:s=>s.sb>=600,   tp:2, r:'후보 다시 뽑기 +1', inc:{candRerolls:1}},
 
  // ── 영예 ──
- {id:'title1', n:'타이틀 홀더',   d:'개인 타이틀 1회',              c:s=>s.titles>=1, tp:1, r:'레어 등급 개방', set:{gradeLevel:2}},
- {id:'title5', n:'수집가',       d:'개인 타이틀 통산 20회',          c:s=>s.titles>=20, tp:3, r:'몬스터 등급 개방', set:{gradeLevel:3}},
- {id:'title15',n:'시대의 지배자', d:'개인 타이틀 통산 70회',         c:s=>s.titles>=70, tp:4, r:'Legacy Score +8%', inc:{legacyMul:0.03}},
- {id:'mvp1',   n:'최고의 해',    d:'MVP 수상',                    c:s=>s.mvp>=1,    tp:3, r:'희귀 훈련 카드 개방', set:{rare:true}},
- {id:'mvp3',   n:'왕조',         d:'MVP 통산 10회',                c:s=>s.mvp>=10,    tp:4, r:'선수 특성 슬롯 +1', inc:{slotBonus:1}},
- {id:'roy1',   n:'신인왕',       d:'신인왕 수상',                  c:s=>s.roy>=1,    tp:1, r:'시작 팀 신뢰 +8', inc:{trustStart:8}},
- {id:'gg5',    n:'수비의 달인',   d:'골든글러브 통산 20회',           c:s=>s.gg>=20,     tp:3, r:'수상 경쟁력 +10%', inc:{awardMod:0.06}},
- {id:'allstar10',n:'단골 손님',  d:'올스타 통산 45회',              c:s=>s.allstar>=45, tp:2, r:'국대 선발 +12%', inc:{natlMod:0.07}},
- {id:'champ1', n:'우승 반지',    d:'팀 우승 1회',                  c:s=>s.champs>=1, tp:1, r:'우승 경쟁력 +15%', inc:{champMod:0.8}},
- {id:'champ5', n:'반지 수집가',   d:'팀 우승 통산 22회',             c:s=>s.champs>=22, tp:3, r:'우승 경쟁력 +15%', inc:{champMod:0.8}},
- {id:'legend', n:'전설의 은퇴',   d:'LEGEND 등급으로 은퇴',         c:s=>s.legend>=1, tp:4, r:'Legacy Score +10%', inc:{legacyMul:0.04}},
- {id:'star5',  n:'스타 군단',    d:'STAR 이상으로 18명 은퇴',        c:s=>s.star>=18,   tp:3, r:'잠재력 +4', inc:{potBonus:1}},
+ {id:'title1', n:'타이틀 홀더',   d:'개인 타이틀 1회',              c:s=>s.titles>=1, tp:2, r:'레어 등급 개방', set:{gradeLevel:2}},
+ {id:'title5', n:'수집가',       d:'개인 타이틀 통산 12회',          c:s=>s.titles>=12, tp:4, r:'몬스터 등급 개방', set:{gradeLevel:3}},
+ {id:'title15',n:'시대의 지배자', d:'개인 타이틀 통산 40회',         c:s=>s.titles>=40, tp:6, r:'Legacy Score +8%', inc:{legacyMul:0.04}},
+ {id:'mvp1',   n:'최고의 해',    d:'MVP 수상',                    c:s=>s.mvp>=1,    tp:4, r:'희귀 훈련 카드 개방', set:{rare:true}},
+ {id:'mvp3',   n:'왕조',         d:'MVP 통산 6회',                c:s=>s.mvp>=6,    tp:6, r:'선수 특성 슬롯 +1', inc:{slotBonus:1}},
+ {id:'roy1',   n:'신인왕',       d:'신인왕 수상',                  c:s=>s.roy>=1,    tp:2, r:'시작 팀 신뢰 +8', inc:{trustStart:8}},
+ {id:'gg5',    n:'수비의 달인',   d:'골든글러브 통산 12회',           c:s=>s.gg>=12,     tp:4, r:'수상 경쟁력 +10%', inc:{awardMod:0.06}},
+ {id:'allstar10',n:'단골 손님',  d:'올스타 통산 28회',              c:s=>s.allstar>=28, tp:3, r:'국대 선발 +12%', inc:{natlMod:0.07}},
+ {id:'champ1', n:'우승 반지',    d:'팀 우승 1회',                  c:s=>s.champs>=1, tp:2, r:'우승 경쟁력 +15%', inc:{champMod:0.8}},
+ {id:'champ5', n:'반지 수집가',   d:'팀 우승 통산 14회',             c:s=>s.champs>=14, tp:4, r:'우승 경쟁력 +15%', inc:{champMod:0.8}},
+ {id:'legend', n:'전설의 은퇴',   d:'LEGEND 등급으로 은퇴',         c:s=>s.legend>=1, tp:5, r:'Legacy Score +10%', inc:{legacyMul:0.06}},
+ {id:'star5',  n:'스타 군단',    d:'STAR 이상으로 5명 은퇴',        c:s=>s.star>=10,   tp:4, r:'잠재력 +4', inc:{potBonus:2}},
 
  // ── 굴곡 ──
- {id:'natl1',  n:'태극마크',     d:'국가대표 선발 1회',             c:s=>s.natl>=1,   tp:1, r:'국대 선발 +15%', inc:{natlMod:0.08}},
- {id:'natl10', n:'대표팀 붙박이', d:'국가대표 통산 42회',            c:s=>s.natl>=42,  tp:3, r:'수상 경쟁력 +10%', inc:{awardMod:0.06}},
- {id:'exempt', n:'병역 해결',    d:'국제대회 금메달로 특례',         c:s=>s.exempt>=1, tp:1, r:'상무 발탁률 +20%', inc:{sangmuMod:0.11}},
- {id:'milA',   n:'군대 다녀왔습니다', d:'현역으로 복무 후 복귀',      c:s=>s.milActive>=1, tp:1, r:'부상 위험 −10%', inc:{injMod:-0.06}},
- {id:'milS',   n:'상무 출신',    d:'상무 복무 후 복귀',             c:s=>s.milSangmu>=1, tp:1, r:'성장 속도 +3%', inc:{growMul:0.01}},
- {id:'rel1',   n:'다시 일어서다', d:'방출 후 다른 팀에서 재기',       c:s=>s.released>=1, tp:1, r:'FA 조건 개선', flag:'faBoost'},
- {id:'fa2',    n:'몸값',        d:'FA 통산 8회 행사',              c:s=>s.fa>=8,     tp:2, r:'시작 팀 신뢰 +8', inc:{trustStart:8}},
- {id:'college',n:'돌아온 길',    d:'육성 리그를 거쳐 프로 입단',      c:s=>s.college>=1, tp:1, r:'육성 리그 기회 +1', inc:{collegeExtra:1}},
- {id:'posmove',n:'자리를 옮겨',   d:'포지션·보직을 바꿔 전성기를 맞이', c:s=>s.posMoved>=1, tp:1, r:'훈련 카드 +1', inc:{cards:1}},
+ {id:'natl1',  n:'태극마크',     d:'국가대표 선발 1회',             c:s=>s.natl>=1,   tp:2, r:'국대 선발 +15%', inc:{natlMod:0.08}},
+ {id:'natl10', n:'대표팀 붙박이', d:'국가대표 통산 26회',            c:s=>s.natl>=26,  tp:4, r:'수상 경쟁력 +10%', inc:{awardMod:0.06}},
+ {id:'exempt', n:'병역 해결',    d:'국제대회 금메달로 특례',         c:s=>s.exempt>=1, tp:2, r:'상무 발탁률 +20%', inc:{sangmuMod:0.11}},
+ {id:'milA',   n:'군대 다녀왔습니다', d:'현역으로 복무 후 복귀',      c:s=>s.milActive>=1, tp:2, r:'부상 위험 −10%', inc:{injMod:-0.06}},
+ {id:'milS',   n:'상무 출신',    d:'상무 복무 후 복귀',             c:s=>s.milSangmu>=1, tp:2, r:'성장 속도 +3%', inc:{growMul:0.02}},
+ {id:'rel1',   n:'다시 일어서다', d:'방출 후 다른 팀에서 재기',       c:s=>s.released>=1, tp:2, r:'FA 조건 개선', flag:'faBoost'},
+ {id:'fa2',    n:'몸값',        d:'FA 통산 5회 행사',              c:s=>s.fa>=5,     tp:3, r:'시작 팀 신뢰 +8', inc:{trustStart:8}},
+ {id:'college',n:'돌아온 길',    d:'육성 리그를 거쳐 프로 입단',      c:s=>s.college>=1, tp:2, r:'육성 리그 기회 +1', inc:{collegeExtra:1}},
+ {id:'posmove',n:'자리를 옮겨',   d:'포지션·보직을 바꿔 전성기를 맞이', c:s=>s.posMoved>=1, tp:2, r:'훈련 카드 +1', inc:{cards:1}},
 
  // ── 기록실 ──
- {id:'hof3',   n:'기록실 셋',    d:'기록실에 3명 등재',             c:s=>s.hof>=3,  tp:1, r:'대기만성 계열 등장률 상승', inc:{lateOdds:0.20}},
- {id:'hof9',   n:'아홉 명',      d:'기록실에 20명 등재',             c:s=>s.hof>=20,  tp:2, r:'선수 특성 슬롯 +1', inc:{slotBonus:1}},
- {id:'hof20',  n:'명부',        d:'기록실에 50명 등재',            c:s=>s.hof>=50, tp:4, r:'잠재력 +4', inc:{potBonus:1}},
- {id:'clear3', n:'도전자',       d:'도전 5단계 격파',               c:s=>s.cleared>=5, tp:2, r:'훈련 대성공 확률 상승', inc:{critUp:3}},
- {id:'clear7', n:'정복',        d:'도전 10단계 격파',               c:s=>s.cleared>=10, tp:4, r:'Legacy Score +10%', inc:{legacyMul:0.04}},
+ {id:'hof3',   n:'기록실 셋',    d:'기록실에 3명 등재',             c:s=>s.hof>=3,  tp:2, r:'대기만성 계열 등장률 상승', inc:{lateOdds:0.20}},
+ {id:'hof9',   n:'아홉 명',      d:'기록실에 14명 등재',             c:s=>s.hof>=14,  tp:3, r:'선수 특성 슬롯 +1', inc:{slotBonus:1}},
+ {id:'hof20',  n:'명부',        d:'기록실에 35명 등재',            c:s=>s.hof>=35, tp:5, r:'잠재력 +4', inc:{potBonus:2}},
+ {id:'clear3', n:'도전자',       d:'도전 3단계 격파',               c:s=>s.cleared>=3, tp:3, r:'훈련 대성공 확률 상승', inc:{critUp:3}},
+ {id:'clear7', n:'정복',        d:'도전 7단계 격파',               c:s=>s.cleared>=7, tp:6, r:'Legacy Score +10%', inc:{legacyMul:0.06}},
  // ── 유물 ──
- {id:'rel_dex10', n:'수집의 시작', d:'유물 10종을 도감에 등록',       c:s=>(meta().relicDex||[]).length>=10, tp:2,
-  r:'유물 등장 운 상승', inc:{relicLuck:0.10}},
- {id:'rel_dex24', n:'수집가의 눈', d:'유물 30종을 도감에 등록',       c:s=>(meta().relicDex||[]).length>=30, tp:4,
+ {id:'rel_dex10', n:'수집의 시작', d:'유물 10종을 도감에 등록',       c:s=>(meta().relicDex||[]).length>=10, tp:3,
+  r:'유물 등장 운 상승', inc:{relicLuck:0.15}},
+ {id:'rel_dex24', n:'수집가의 눈', d:'유물 24종을 도감에 등록',       c:s=>(meta().relicDex||[]).length>=24, tp:6,
   r:'유물 슬롯 +1', inc:{relicSlot:1}},
- {id:'rel_dexall',n:'도감 완성',   d:'모든 유물을 도감에 등록',       c:s=>(meta().relicDex||[]).length>=RELICS.length, tp:8,
-  r:'유물 등장 운 크게 상승', inc:{relicLuck:0.28}},
- {id:'rel_legend',n:'전설을 손에', d:'전설 등급 유물 획득',           c:s=>s.legendRelic>=1, tp:4,
-  r:'유물 등장 운 상승', inc:{relicLuck:0.14}},
- {id:'rel_combo', n:'맞물린 조합', d:'유물 조합 효과 발동',           c:s=>s.relCombo>=1, tp:4,
+ {id:'rel_dexall',n:'도감 완성',   d:'모든 유물을 도감에 등록',       c:s=>(meta().relicDex||[]).length>=RELICS.length, tp:12,
+  r:'유물 등장 운 크게 상승', inc:{relicLuck:0.40}},
+ {id:'rel_legend',n:'전설을 손에', d:'전설 등급 유물 획득',           c:s=>s.legendRelic>=1, tp:6,
+  r:'유물 등장 운 상승', inc:{relicLuck:0.20}},
+ {id:'rel_combo', n:'맞물린 조합', d:'유물 조합 효과 발동',           c:s=>s.relCombo>=1, tp:5,
   r:'유물 슬롯 +1', inc:{relicSlot:1}},
- {id:'rel_set3',  n:'한 우물',     d:'같은 계열 유물 3개 보유',       c:s=>s.relSet3>=1, tp:3,
-  r:'성장 속도 +3%', inc:{growMul:0.02}},
+ {id:'rel_set3',  n:'한 우물',     d:'같은 계열 유물 3개 보유',       c:s=>s.relSet3>=1, tp:4,
+  r:'성장 속도 +3%', inc:{growMul:0.03}},
 
  // ── 목표 ──
- {id:'goal_all',  n:'완벽한 한 해', d:'한 시즌에 목표 셋을 모두 달성',  c:s=>s.goalAll>=1, tp:4,
+ {id:'goal_all',  n:'완벽한 한 해', d:'한 시즌에 목표 셋을 모두 달성',  c:s=>s.goalAll>=1, tp:5,
   r:'시작 팀 신뢰 +8', inc:{trustStart:8}},
- {id:'goal_dream',n:'특별한 약속',  d:'특별 목표 통산 18회 달성',      c:s=>s.goalDream>=18, tp:5,
+ {id:'goal_dream',n:'특별한 약속',  d:'특별 목표 통산 10회 달성',      c:s=>s.goalDream>=10, tp:7,
   r:'수상 경쟁력 +10%', inc:{awardMod:0.10}},
 
  // ── 굴곡 ──
- {id:'rel_back',  n:'세 번 잘리고도',d:'통산 방출 5회를 겪고도 은퇴까지',c:s=>s.released>=5, tp:4,
+ {id:'rel_back',  n:'세 번 잘리고도',d:'통산 방출 3회를 겪고도 은퇴까지',c:s=>s.released>=3, tp:5,
   r:'부상 위험 −8%', inc:{injMod:-0.08}},
- {id:'ps_champ',  n:'가을의 사나이', d:'포스트시즌 우승 5회',           c:s=>s.champs>=5, tp:4,
+ {id:'ps_champ',  n:'가을의 사나이', d:'포스트시즌 우승 3회',           c:s=>s.champs>=3, tp:5,
   r:'우승 경쟁력 +10%', inc:{champMod:0.10}},
- {id:'ps_mvp',    n:'시리즈의 주인공',d:'시리즈 MVP 수상',             c:s=>s.smvp>=1, tp:4,
+ {id:'ps_mvp',    n:'시리즈의 주인공',d:'시리즈 MVP 수상',             c:s=>s.smvp>=1, tp:6,
   r:'훈련 카드 +1', inc:{cards:1}},
- {id:'hl5',       n:'기억되는 장면', d:'커리어 명장면 통산 8회',        c:s=>s.highlights>=8, tp:4,
+ {id:'hl5',       n:'기억되는 장면', d:'커리어 명장면 통산 5회',        c:s=>s.highlights>=5, tp:5,
   r:'평판 상승폭 증가', inc:{awardMod:0.08}},
- {id:'nohit',     n:'완벽한 하루',   d:'노히트 노런 달성',             c:s=>s.nohit>=1, tp:6,
-  r:'유물 등장 운 상승', inc:{relicLuck:0.14}},
- {id:'cycle',     n:'네 가지 안타',  d:'사이클링 히트 달성',           c:s=>s.cycle>=1, tp:6,
-  r:'유물 등장 운 상승', inc:{relicLuck:0.14}},
- {id:'rival_win', n:'동기를 넘어',   d:'동기보다 높은 통산 WAR로 6회 은퇴', c:s=>s.rivalWin>=6, tp:4,
-  r:'성장 속도 +3%', inc:{growMul:0.02}},
- {id:'rival_far', n:'비교불가',     d:'동기보다 WAR 30 이상 앞서기',   c:s=>s.rivalFar>=1, tp:5,
-  r:'잠재력 +3', inc:{potBonus:2}},
- {id:'ironman',   n:'철인',        d:'한 커리어에서 부상 사건 없이 10시즌', c:s=>s.noInjury>=1, tp:4,
+ {id:'nohit',     n:'완벽한 하루',   d:'노히트 노런 달성',             c:s=>s.nohit>=1, tp:8,
+  r:'유물 등장 운 상승', inc:{relicLuck:0.20}},
+ {id:'cycle',     n:'네 가지 안타',  d:'사이클링 히트 달성',           c:s=>s.cycle>=1, tp:8,
+  r:'유물 등장 운 상승', inc:{relicLuck:0.20}},
+ {id:'rival_win', n:'동기를 넘어',   d:'동기보다 높은 통산 WAR로 은퇴', c:s=>s.rivalWin>=3, tp:5,
+  r:'성장 속도 +3%', inc:{growMul:0.03}},
+ {id:'rival_far', n:'비교불가',     d:'동기보다 WAR 30 이상 앞서기',   c:s=>s.rivalFar>=1, tp:7,
+  r:'잠재력 +3', inc:{potBonus:3}},
+ {id:'ironman',   n:'철인',        d:'한 커리어에서 부상 사건 없이 10시즌', c:s=>s.noInjury>=1, tp:6,
   r:'부상 위험 −10%', inc:{injMod:-0.10}},
- {id:'onetown',   n:'원클럽맨',     d:'한 팀에서만 뛰고 12시즌 이상',   c:s=>s.oneClub>=1, tp:4,
+ {id:'onetown',   n:'원클럽맨',     d:'한 팀에서만 뛰고 12시즌 이상',   c:s=>s.oneClub>=1, tp:6,
   r:'시작 팀 신뢰 +8', inc:{trustStart:8}},
- {id:'traveler',  n:'유랑',        d:'한 커리어에서 4개 팀 이상 경험',  c:s=>s.manyTeams>=1, tp:3,
+ {id:'traveler',  n:'유랑',        d:'한 커리어에서 4개 팀 이상 경험',  c:s=>s.manyTeams>=1, tp:4,
   r:'FA 조건 개선', flag:'faBoost'},
- {id:'both_pos',  n:'전향',        d:'포지션·보직을 네 번 이상 바꾸기', c:s=>s.posMoved>=5, tp:4,
-  r:'훈련 리롤 +1', inc:{rerolls:1}},
-
- // ── 한 시즌의 정점 ──
- {id:'s_h180', n:'안타 기계',    d:'한 시즌 180안타',              c:s=>s.bestH>=180, tp:5, r:'훈련 카드 +1', inc:{cards:1}},
- {id:'s_rbi120',n:'해결사',     d:'한 시즌 120타점',              c:s=>s.bestRbi>=120, tp:5, r:'잠재력 +2', inc:{potBonus:2}},
- {id:'s_sb50', n:'질주',        d:'한 시즌 50도루',               c:s=>s.bestSb>=50, tp:5, r:'후보 다시 뽑기 +1', inc:{candRerolls:1}},
- {id:'s_ops1', n:'압도',        d:'한 시즌 OPS 1.000',            c:s=>s.bestOps>=1.000, tp:6, r:'수상 경쟁력 +6%', inc:{awardMod:0.06}},
- {id:'s_ip200',n:'이닝 이터',    d:'한 시즌 200이닝',              c:s=>s.bestIp>=200, tp:6, r:'부상 위험 −6%', inc:{injMod:-0.06}},
- {id:'s_w20',  n:'20승',       d:'한 시즌 20승',                 c:s=>s.bestW>=20, tp:7, r:'성장 속도 +2%', inc:{growMul:0.02}},
- {id:'s_so220',n:'닥터 K',      d:'한 시즌 220탈삼진',            c:s=>s.bestSo>=220, tp:6, r:'훈련 리롤 +1', inc:{rerolls:1}},
-
- // ── 통산 정점 ──
- {id:'c_ovr95',n:'한계 너머',    d:'OVR 95 달성',                 c:s=>s.bestOvr>=95, tp:9, r:'잠재력 +3', inc:{potBonus:3}},
- {id:'c_war50',n:'한 선수의 무게',d:'한 선수로 통산 WAR 50',        c:s=>s.bestCareerWar>=50, tp:7, r:'Legacy Score +4%', inc:{legacyMul:0.04}},
- {id:'c_leg5', n:'전설들',      d:'LEGEND 등급으로 5명 은퇴',      c:s=>s.legend>=5, tp:9, r:'유물 등장 운 상승', inc:{relicLuck:0.12}},
- {id:'c_ls5k', n:'대기록',      d:'Legacy Score 5000 달성',       c:s=>s.bestLegacy>=5000, tp:8, r:'특성 슬롯 +1', inc:{slotBonus:1}},
-
- // ── 구단과 무대 ──
- {id:'t_trust',n:'구단의 기둥',  d:'팀 신뢰 95 이상으로 시즌 마치기', c:s=>s.maxTrust>=95, tp:4, r:'시작 팀 신뢰 +5', inc:{trustStart:5}},
- {id:'t_rep',  n:'국민 선수',    d:'평판 95 이상 달성',            c:s=>s.maxRep>=95, tp:5, r:'국대 선발 +6%', inc:{natlMod:0.06}},
- {id:'t_sal',  n:'몸값의 정점',  d:'연봉 15억 도달',               c:s=>s.maxSalary>=150000, tp:5, r:'FA 조건 개선', flag:'faBoost'},
- {id:'t_ps',   n:'가을 단골',    d:'포스트시즌 10회 진출',          c:s=>s.psCount>=10, tp:5, r:'우승 경쟁력 +8%', inc:{champMod:0.08}},
- {id:'t_ks',   n:'한국시리즈의 남자',d:'한국시리즈 3회 진출',        c:s=>s.ksCount>=3, tp:5, r:'훈련 카드 +1', inc:{cards:1}},
-
- // ── 역경 ──
- {id:'x_inj',  n:'다시 일어서다', d:'큰 부상 3회를 겪고도 은퇴까지',  c:s=>s.injuries>=3, tp:5, r:'회복 속도 상승', inc:{healMod:4}},
- {id:'x_minor',n:'긴 터널',     d:'2군 6시즌을 버틴 뒤 1군 주전 되기',c:s=>s.longMinor>=1, tp:6, r:'잠재력 +2', inc:{potBonus:2}},
- {id:'x_late', n:'늦은 개화',    d:'30세 이후 첫 타이틀 획득',       c:s=>s.lateTitle>=1, tp:6, r:'성장 속도 +2%', inc:{growMul:0.02}},
- {id:'x_extend',n:'끝까지',     d:'현역 연장을 택하고 3시즌 더 뛰기', c:s=>s.extended>=1, tp:5, r:'방출 위험 감소', inc:{releaseCut:0.05}},
- {id:'x_nomil',n:'병역 미필 은퇴',d:'병역을 해결하지 못한 채 은퇴',   c:s=>s.noMil>=1, tp:3, r:'상무 발탁률 +8%', inc:{sangmuMod:0.08}},
-
- // ── 쉬움 ──
- {id:'e_draft',  n:'지명',        d:'드래프트로 프로 입단',          c:s=>s.plays>=1, tp:1, r:'훈련 카드 +1', inc:{cards:1}},
- {id:'e_hit1',   n:'첫 안타',      d:'1군 통산 100안타',             c:s=>s.hits>=100, tp:1, r:'잠재력 +1', inc:{potBonus:1}},
- {id:'e_hr10',   n:'두 자릿수',    d:'1군 통산 30홈런',              c:s=>s.hr>=30, tp:1, r:'후보 다시 뽑기 +1', inc:{candRerolls:1}},
- {id:'e_w10',    n:'첫 승',       d:'1군 통산 20승',                c:s=>s.wins>=20, tp:1, r:'훈련 리롤 +1', inc:{rerolls:1}},
- {id:'e_goal1',  n:'약속',        d:'시즌 목표 하나 달성',           c:s=>s.goalHitTotal>=1, tp:1, r:'시작 팀 신뢰 +3', inc:{trustStart:3}},
- {id:'e_relic1', n:'첫 유물',      d:'유물 하나 획득',               c:s=>(meta().relicDex||[]).length>=1, tp:1, r:'유물 등장 운 소폭 상승', inc:{relicLuck:0.05}},
- {id:'e_allstar1',n:'별들의 무대', d:'올스타 선정',                  c:s=>s.allstar>=1, tp:2, r:'평판 상승 폭 증가', inc:{awardMod:0.03}},
- {id:'e_ovr60',  n:'1군의 문턱',   d:'OVR 60 달성',                 c:s=>s.bestOvr>=60, tp:2, r:'잠재력 +1', inc:{potBonus:1}},
-
- // ── 보통 ──
- {id:'m_hit500', n:'꾸준한 방망이',d:'1군 통산 800안타',             c:s=>s.hits>=800, tp:3, r:'훈련 카드 +1', inc:{cards:1}},
- {id:'m_hr100',  n:'100홈런',     d:'1군 통산 150홈런',             c:s=>s.hr>=150, tp:3, r:'잠재력 +2', inc:{potBonus:2}},
- {id:'m_w60',    n:'선발의 값',    d:'1군 통산 80승',               c:s=>s.wins>=80, tp:3, r:'부상 위험 −5%', inc:{injMod:-0.05}},
- {id:'m_so800',  n:'삼진 수집',    d:'1군 통산 1000탈삼진',          c:s=>s.so>=1000, tp:3, r:'훈련 리롤 +1', inc:{rerolls:1}},
- {id:'m_sv100',  n:'뒷문지기',     d:'1군 통산 120세이브',           c:s=>s.sv>=120, tp:3, r:'수상 경쟁력 +4%', inc:{awardMod:0.04}},
- {id:'m_goal20', n:'믿음직한 선수',d:'시즌 목표 통산 25회 달성',      c:s=>s.goalHitTotal>=25, tp:3, r:'시작 팀 신뢰 +4', inc:{trustStart:4}},
- {id:'m_ps3',    n:'가을을 밟다',  d:'포스트시즌 3회 진출',           c:s=>s.psCount>=3, tp:3, r:'우승 경쟁력 +5%', inc:{champMod:0.05}},
- {id:'m_dex18',  n:'모으는 재미',  d:'유물 18종 도감 등록',           c:s=>(meta().relicDex||[]).length>=18, tp:3, r:'유물 등장 운 상승', inc:{relicLuck:0.08}},
- {id:'m_hof6',   n:'여섯 명',     d:'기록실에 6명 등재',             c:s=>s.hof>=6, tp:3, r:'성장 속도 +2%', inc:{growMul:0.02}},
- {id:'m_rival',  n:'선의의 경쟁',  d:'동기보다 앞선 채로 2회 은퇴',    c:s=>s.rivalWin>=2, tp:3, r:'잠재력 +1', inc:{potBonus:1}},
-
- // ── 어려움 ──
- {id:'h_ovr88',  n:'정점의 언저리',d:'OVR 88 달성',                 c:s=>s.bestOvr>=88, tp:5, r:'잠재력 +2', inc:{potBonus:2}},
- {id:'h_war15',  n:'독보적인 해',  d:'한 시즌 WAR 7 달성',           c:s=>s.bestWar>=7, tp:5, r:'수상 경쟁력 +5%', inc:{awardMod:0.05}},
- {id:'h_title8', n:'상복',        d:'개인 타이틀 통산 8회',          c:s=>s.titles>=8, tp:5, r:'훈련 대성공 확률 상승', inc:{critUp:3}},
- {id:'h_gold',   n:'금메달',      d:'국제대회 금메달 2회',           c:s=>s.exempt>=2, tp:5, r:'국대 선발 +8%', inc:{natlMod:0.08}},
- {id:'h_ks2',    n:'우승 청부사',  d:'한국시리즈 우승 2회',           c:s=>s.champs>=2, tp:4, r:'우승 경쟁력 +6%', inc:{champMod:0.06}},
- {id:'h_combo3', n:'맞물린 셋',    d:'한 커리어에서 유물 조합 3회 발동',c:s=>s.relCombo>=3, tp:5, r:'유물 슬롯 +1', inc:{relicSlot:1}},
- {id:'h_oneclub',n:'한 팀에서',    d:'원클럽맨으로 2명 은퇴',         c:s=>s.oneClub>=2, tp:5, r:'시작 팀 신뢰 +5', inc:{trustStart:5}},
-
- // ── 매우 어려움 ──
- {id:'v_ovr98',  n:'완성형',      d:'OVR 98 달성',                 c:s=>s.bestOvr>=98, tp:8, r:'잠재력 +3', inc:{potBonus:3}},
- {id:'v_war12',  n:'전무후무',     d:'한 시즌 WAR 11 달성',          c:s=>s.bestWar>=11, tp:9, r:'성장 속도 +3%', inc:{growMul:0.03}},
- {id:'v_triple', n:'트리플 크라운',d:'한 시즌에 타이틀 3개 동시 획득', c:s=>s.tripleCrown>=1, tp:9, r:'수상 경쟁력 +8%', inc:{awardMod:0.08}},
- {id:'v_mvp3',   n:'절대자',      d:'한 선수로 MVP 3회',            c:s=>s.bestMvpOne>=3, tp:9, r:'특성 슬롯 +1', inc:{slotBonus:1}},
- {id:'v_ls8k',   n:'불멸',        d:'Legacy Score 8000 달성',       c:s=>s.bestLegacy>=8000, tp:9, r:'Legacy Score +5%', inc:{legacyMul:0.05}},
- {id:'v_clear14',n:'완전 정복',    d:'도전 14단계 전부 격파',         c:s=>s.cleared>=14, tp:10, r:'유물 등장 운 크게 상승', inc:{relicLuck:0.15}},
-
- // ── 불가능에 가까움 ──
- {id:'z_perfect',n:'완벽한 커리어',d:'한 선수로 WAR 80 · 타이틀 10회 · 우승 3회', c:s=>s.perfectRun>=1, tp:15, r:'잠재력 +4 · 성장 +3%', inc:{potBonus:4, growMul:0.03}},
- {id:'z_dex',    n:'전부 모았다',  d:'유물 도감 100% 완성',          c:s=>(meta().relicDex||[]).length>=RELICS.length, tp:12, r:'유물 슬롯 +1', inc:{relicSlot:1}},
- {id:'z_ach',    n:'수집의 끝',    d:'다른 업적을 모두 달성',         c:s=>(meta().ach||[]).length>=ACHIEVE.length-1, tp:20, r:'잠재력 +5', inc:{potBonus:5}},
- {id:'z_nohit2', n:'두 번의 완벽',  d:'노히트 노런 2회',             c:s=>s.nohit>=2, tp:12, r:'훈련 대성공 확률 상승', inc:{critUp:4}},
- {id:'z_ironman',n:'무결점',      d:'부상 없이 15시즌을 뛰고 은퇴',   c:s=>s.noInjury15>=1, tp:12, r:'부상 위험 −10%', inc:{injMod:-0.10}}
+ {id:'both_pos',  n:'전향',        d:'포지션·보직을 두 번 이상 바꾸기', c:s=>s.posMoved>=3, tp:5,
+  r:'훈련 리롤 +1', inc:{rerolls:1}}
 ];
 function achDone(){ return meta().ach||[] }
 function checkAchievements(){
@@ -5448,84 +5182,74 @@ function checkAchievements(){
    ═══════════════════════════════════════════════════════════ */
 const PERKS=[
  // ── 육성 ──
- {id:'p_pot', br:'육성', n:'유망주 발굴',   max:4, cost:8, inc:{potBonus:2},    d:'생성 선수의 잠재력 +2'},
- {id:'p_grow',br:'육성', n:'전담 코치',     max:4, cost:8, inc:{growMul:0.03},  d:'성장 속도 +3%'},
- {id:'p_card',br:'육성', n:'훈련 프로그램', max:2, cost:10, inc:{cards:1},       d:'겨울 훈련 카드 +1', req:'p_grow'},
- {id:'p_rr',  br:'육성', n:'시행착오',      max:3, cost:8, inc:{rerolls:1},     d:'훈련 카드 리롤 +1'},
- {id:'p_focus',br:'육성',n:'집중 육성',     max:1, cost:19, flag:'focusStart',
+ {id:'p_pot', br:'육성', n:'유망주 발굴',   max:4, cost:5, inc:{potBonus:2},    d:'생성 선수의 잠재력 +2'},
+ {id:'p_grow',br:'육성', n:'전담 코치',     max:4, cost:5, inc:{growMul:0.03},  d:'성장 속도 +3%'},
+ {id:'p_card',br:'육성', n:'훈련 프로그램', max:2, cost:6, inc:{cards:1},       d:'겨울 훈련 카드 +1', req:'p_grow'},
+ {id:'p_rr',  br:'육성', n:'시행착오',      max:3, cost:5, inc:{rerolls:1},     d:'훈련 카드 리롤 +1'},
+ {id:'p_focus',br:'육성',n:'집중 육성',     max:1, cost:11, flag:'focusStart',
    d:'시작 시 주 특성 +2.5, 나머지 합 −2.0 — 뾰족한 선수로 출발한다', req:'p_pot'},
- {id:'p_late',br:'육성', n:'만개',          max:1, cost:22, flag:'lateBloom',
+ {id:'p_late',br:'육성', n:'만개',          max:1, cost:13, flag:'lateBloom',
    d:'29세 이후 성장 곡선이 꺾이지 않는다', req:'p_grow'},
 
  // ── 안목 ──
- {id:'p_cand',br:'안목', n:'스카우트망',    max:3, cost:8, inc:{candRerolls:1}, d:'생성 시 후보 다시 뽑기 +1'},
- {id:'p_prev',br:'안목', n:'전력 분석',     max:1, cost:10, set:{preview:true},  d:'훈련 카드의 성공 확률을 미리 본다'},
- {id:'p_crit',br:'안목', n:'재능 개화',     max:2, cost:14, inc:{critUp:5},      d:'훈련 대성공 확률 상승', req:'p_cand'},
- {id:'p_half',br:'안목', n:'불굴',          max:1, cost:17, flag:'disasterHalf',
+ {id:'p_cand',br:'안목', n:'스카우트망',    max:3, cost:5, inc:{candRerolls:1}, d:'생성 시 후보 다시 뽑기 +1'},
+ {id:'p_prev',br:'안목', n:'전력 분석',     max:1, cost:6, set:{preview:true},  d:'훈련 카드의 성공 확률을 미리 본다'},
+ {id:'p_crit',br:'안목', n:'재능 개화',     max:2, cost:8, inc:{critUp:5},      d:'훈련 대성공 확률 상승', req:'p_cand'},
+ {id:'p_half',br:'안목', n:'불굴',          max:1, cost:10, flag:'disasterHalf',
    d:'훈련 대실패의 손해가 절반으로 줄고, 흐름도 덜 꺾인다'},
- {id:'p_rare',br:'안목', n:'특별 훈련',     max:1, cost:22, set:{rare:true},     d:'희귀 훈련 카드 개방', req:'p_crit'},
- {id:'p_peek',br:'안목', n:'잠재력 진단',   max:1, cost:19, flag:'potPeek',
+ {id:'p_rare',br:'안목', n:'특별 훈련',     max:1, cost:13, set:{rare:true},     d:'희귀 훈련 카드 개방', req:'p_crit'},
+ {id:'p_peek',br:'안목', n:'잠재력 진단',   max:1, cost:11, flag:'potPeek',
    d:'선수 화면에서 잠재력 범위를 볼 수 있다', req:'p_prev'},
 
  // ── 커리어 ──
- {id:'p_inj', br:'커리어',n:'트레이닝 파트',max:3, cost:8, inc:{injMod:-0.12},  d:'부상 위험 12% 감소'},
- {id:'p_natl',br:'커리어',n:'대표팀 인맥',  max:3, cost:8, inc:{natlMod:0.12},  d:'국가대표 선발 확률 +12%'},
- {id:'p_award',br:'커리어',n:'미디어 노출', max:3, cost:10, inc:{awardMod:0.10}, d:'수상·타이틀 경쟁력 +10%'},
- {id:'p_trust',br:'커리어',n:'구단 신임',   max:2, cost:10, inc:{trustStart:8},  d:'시작 팀 신뢰 +8', req:'p_award'},
- {id:'p_will',br:'커리어',n:'의지',         max:1, cost:19, flag:'retireResist',
+ {id:'p_inj', br:'커리어',n:'트레이닝 파트',max:3, cost:5, inc:{injMod:-0.12},  d:'부상 위험 12% 감소'},
+ {id:'p_natl',br:'커리어',n:'대표팀 인맥',  max:3, cost:5, inc:{natlMod:0.12},  d:'국가대표 선발 확률 +12%'},
+ {id:'p_award',br:'커리어',n:'미디어 노출', max:3, cost:6, inc:{awardMod:0.10}, d:'수상·타이틀 경쟁력 +10%'},
+ {id:'p_trust',br:'커리어',n:'구단 신임',   max:2, cost:6, inc:{trustStart:8},  d:'시작 팀 신뢰 +8', req:'p_award'},
+ {id:'p_will',br:'커리어',n:'의지',         max:1, cost:11, flag:'retireResist',
    d:'은퇴 권유를 한 번 무시하고 현역을 이어갈 수 있다'},
- {id:'p_fa',  br:'커리어',n:'거물 에이전트',max:1, cost:17, flag:'faBoost',
+ {id:'p_fa',  br:'커리어',n:'거물 에이전트',max:1, cost:10, flag:'faBoost',
    d:'FA 시장에 붙는 팀이 늘고 조건이 좋아진다', req:'p_trust'},
 
  // ── 유산 ──
- {id:'p_draft',br:'유산', n:'이름값',       max:2, cost:14, inc:{draftBoost:1},
+ {id:'p_draft',br:'유산', n:'이름값',       max:2, cost:8, inc:{draftBoost:1},
    d:'드래프트 지명 순번이 앞당겨진다'},
- {id:'p_slot',br:'유산',  n:'다재다능',     max:1, cost:24, inc:{slotBonus:1},
+ {id:'p_slot',br:'유산',  n:'다재다능',     max:1, cost:14, inc:{slotBonus:1},
    d:'선수 특성 슬롯 +1 (4 → 5)'},
- {id:'p_legacy',br:'유산',n:'기록의 무게',  max:2, cost:17, inc:{legacyMul:0.08},
+ {id:'p_legacy',br:'유산',n:'기록의 무게',  max:2, cost:10, inc:{legacyMul:0.08},
    d:'Legacy Score +8% — 도전 전력이 올라간다'},
- {id:'p_second',br:'유산',n:'재수',         max:1, cost:14, inc:{collegeExtra:1},
+ {id:'p_second',br:'유산',n:'재수',         max:1, cost:8, inc:{collegeExtra:1},
    d:'미지명 시 육성 리그 재도전 기회 +1'},
  // ── 유물 ──
- {id:'p_rel',  br:'유물', n:'수집가의 눈',  max:2, cost:8, inc:{relicLuck:0.18},
+ {id:'p_rel',  br:'유물', n:'수집가의 눈',  max:2, cost:5, inc:{relicLuck:0.18},
    d:'좋은 유물이 나올 확률이 오른다'},
- {id:'p_relslot',br:'유물',n:'넓은 그릇',   max:2, cost:14, inc:{relicSlot:1},
+ {id:'p_relslot',br:'유물',n:'넓은 그릇',   max:2, cost:8, inc:{relicSlot:1},
    d:'유물 슬롯 +1', req:'p_rel'},
- {id:'p_relpick',br:'유물',n:'안목',        max:1, cost:10, flag:'relicWide',
+ {id:'p_relpick',br:'유물',n:'안목',        max:1, cost:6, flag:'relicWide',
    d:'유물 선택지가 한 장 더 보인다'},
- {id:'p_packB',br:'육성', n:'기본기 프로그램', max:1, cost:12, flag:'packBasic',
-   d:'훈련 카드에 「보완」「실전」이 추가된다'},
- {id:'p_packC',br:'육성', n:'컨디셔닝 프로그램', max:1, cost:14, flag:'packCare',
-   d:'훈련 카드에 「재활」「특훈」이 추가된다'},
- {id:'p_packT',br:'안목', n:'맞바꿈 프로그램', max:1, cost:16, flag:'packTrade',
-   d:'훈련 카드에 「교환」이 추가된다', req:'p_prev'},
- {id:'p_traitpick',br:'안목',n:'선구안',     max:1, cost:9, flag:'traitWide',
-   d:'선수 특성 제안이 한 장 더 보인다'},
- {id:'p_packR',br:'유물', n:'특별 프로그램',  max:1, cost:20, set:{rare:true},
-   d:'훈련 카드에 희귀 카드가 섞인다', req:'p_rel'},
- {id:'p_relreroll',br:'유물',n:'재감정',    max:1, cost:12, flag:'relicReroll',
+ {id:'p_relreroll',br:'유물',n:'재감정',    max:1, cost:7, flag:'relicReroll',
    d:'유물 선택을 한 번 다시 뽑을 수 있다', req:'p_relpick'},
 
  // ── 승부 ──
- {id:'p_ps',   br:'승부', n:'가을 체질',    max:2, cost:7, inc:{psMod:0.10},
+ {id:'p_ps',   br:'승부', n:'가을 체질',    max:2, cost:4, inc:{psMod:0.10},
    d:'포스트시즌에서 강해진다'},
- {id:'p_goal', br:'승부', n:'약속을 지킨다', max:2, cost:7, inc:{goalMod:0.06},
+ {id:'p_goal', br:'승부', n:'약속을 지킨다', max:2, cost:4, inc:{goalMod:0.06},
    d:'구단 목표가 조금 낮게 잡힌다'},
- {id:'p_title',br:'승부', n:'타이틀 사냥꾼', max:2, cost:8, inc:{awardMod:0.08},
+ {id:'p_title',br:'승부', n:'타이틀 사냥꾼', max:2, cost:5, inc:{awardMod:0.08},
    d:'타이틀 경쟁력이 오른다'},
- {id:'p_hl',   br:'승부', n:'명장면 제조기', max:2, cost:7, inc:{hlMod:0.35},
+ {id:'p_hl',   br:'승부', n:'명장면 제조기', max:2, cost:4, inc:{hlMod:0.35},
    d:'기억에 남을 장면이 자주 나온다'},
- {id:'p_rival',br:'승부', n:'경쟁심',       max:2, cost:7, inc:{rivalMod:0.10},
+ {id:'p_rival',br:'승부', n:'경쟁심',       max:2, cost:4, inc:{rivalMod:0.10},
    d:'동기에게 뒤처질 때 더 크게 자란다'},
 
  // ── 생존 ──
- {id:'p_keep', br:'생존', n:'버티는 힘',    max:3, cost:7, inc:{releaseCut:0.08},
+ {id:'p_keep', br:'생존', n:'버티는 힘',    max:3, cost:4, inc:{releaseCut:0.08},
    d:'방출 위험이 줄어든다'},
- {id:'p_second',br:'생존',n:'재취업',       max:2, cost:7, inc:{marketMod:0.10},
+ {id:'p_second',br:'생존',n:'재취업',       max:2, cost:4, inc:{marketMod:0.10},
    d:'방출 뒤 불러주는 팀이 늘어난다'},
- {id:'p_mil',  br:'생존', n:'병역 대비',    max:2, cost:7, inc:{sangmuMod:0.14},
+ {id:'p_mil',  br:'생존', n:'병역 대비',    max:2, cost:4, inc:{sangmuMod:0.14},
    d:'상무 발탁률이 오른다'},
- {id:'p_recover',br:'생존',n:'재활 전문',   max:2, cost:7, inc:{healMod:5},
+ {id:'p_recover',br:'생존',n:'재활 전문',   max:2, cost:4, inc:{healMod:5},
    d:'부상에서 빨리 회복한다'}
 ];
 function perkLv(id){ return (meta().perks||{})[id]||0 }
@@ -5545,40 +5269,6 @@ function buyPerk(id){
   if(pk.inc) for(const k in pk.inc) m[k]=Math.round(((m[k]||0)+pk.inc[k])*100)/100;
   setMeta(m); renderPerks();
 }
-/* 특성 초기화 — 찍은 것을 되돌리고 포인트를 돌려받는다.
-   되돌릴 때 일부를 수수료로 떼어, 아무 때나 갈아엎지는 못하게 한다. */
-function perkRefund(){
-  const m=meta(), perks=m.perks||{};
-  let spent=0;
-  for(const id in perks){
-    const pk=PERKS.find(x=>x.id===id); if(!pk) continue;
-    spent += pk.cost * perks[id];
-  }
-  const lv=Object.values(perks).reduce((a,b)=>a+b,0);
-  // 빌드는 얼마든지 바꿔볼 수 있어야 한다. 대가 없이 전액 돌려준다.
-  return {spent, back:spent, fee:0, net:spent, lv, resets:m.resets||0};
-}
-function resetPerks(){
-  const r=perkRefund();
-  if(!r.lv){ alert('아직 찍은 특성이 없습니다.'); return; }
-  if(!confirm(`특성 ${r.lv}개를 모두 되돌리고 ${r.spent} TP를 전부 돌려받습니다.`)) return;
-  const m=meta();
-  // 특성으로 올린 수치만 걷어낸다 — 업적·도전으로 받은 것은 그대로 둔다
-  for(const id in (m.perks||{})){
-    const pk=PERKS.find(x=>x.id===id); if(!pk) continue;
-    const lv=m.perks[id];
-    if(pk.inc) for(const k in pk.inc) m[k]=Math.round(((m[k]||0)-pk.inc[k]*lv)*100)/100;
-    if(pk.flag && m.flags) delete m.flags[pk.flag];
-    if(pk.set) for(const k in pk.set){
-      // 업적이 같은 것을 열어줬다면 유지한다
-      const byAch=ACHIEVE.some(a=>(m.ach||[]).includes(a.id) && a.set && a.set[k]===pk.set[k]);
-      const byStage=STAGES.some(st=>(m.cleared||[]).includes(st.id) && st.set && st.set[k]===pk.set[k]);
-      if(!byAch && !byStage) m[k]=META_BASE[k];
-    }
-  }
-  m.perks={}; m.tp=Math.max(0,(m.tp||0)+r.back-r.fee); m.resets=(m.resets||0)+1;
-  setMeta(m); renderPerks();
-}
 function renderPerks(){
   const m=meta();
   const brs=['육성','안목','커리어','유산','유물','승부','생존'];
@@ -5586,16 +5276,6 @@ function renderPerks(){
     <p class="eyebrow">특성 포인트 ${m.tp||0} TP</p>
     <h2 class="title">특성</h2>
     <p class="lede">업적과 도전으로 얻은 포인트를 원하는 방향에 씁니다.</p>
-    ${(()=>{ const r=perkRefund();
-      return r.lv? `<div class="sheet"><div class="bd"
-        style="display:flex;align-items:center;gap:10px">
-        <div style="flex:1">
-          <b>찍은 특성 ${r.lv}개</b>
-          <div style="font-size:11.5px;color:var(--ink-soft)">
-            ${r.spent} TP를 전부 돌려받습니다 · 언제든 다시 짤 수 있습니다</div></div>
-        <button class="chip" style="flex:none;color:var(--red);border-color:var(--red)"
-          onclick="resetPerks()">초기화</button>
-      </div></div>` : ''; })()}
     ${brs.map(br=>`<div class="sheet"><div class="hd">${br}</div><div class="bd">
       ${PERKS.filter(p=>p.br===br).map(p=>{
         const st=perkState(p), lv=perkLv(p.id);
@@ -5619,27 +5299,10 @@ function renderPerks(){
 }
 function renderAch(){
   const st=mstats(), done=achDone();
-  const N=ACHIEVE.length;
-  const idx=n=>ACHIEVE.findIndex(a=>a.id===n);
-  const grp=[
-    ['쉬움',       ACHIEVE.slice(idx('e_draft'), idx('m_hit500'))],
-    ['시작',       ACHIEVE.slice(0,6)],
-    ['성장',       ACHIEVE.slice(6,14)],
-    ['보통',       ACHIEVE.slice(idx('m_hit500'), idx('h_ovr88'))],
-    ['성적',       ACHIEVE.slice(14,26)],
-    ['영예',       ACHIEVE.slice(26,38)],
-    ['굴곡',       ACHIEVE.slice(38,47)],
-    ['기록실',     ACHIEVE.slice(47,52)],
-    ['유물',       ACHIEVE.slice(52,58)],
-    ['도전 과제',  ACHIEVE.slice(58,72)],
-    ['한 시즌의 정점', ACHIEVE.slice(72,79)],
-    ['통산 정점',  ACHIEVE.slice(79,83)],
-    ['구단과 무대',ACHIEVE.slice(83,88)],
-    ['역경',       ACHIEVE.slice(88, idx('e_draft'))],
-    ['어려움',     ACHIEVE.slice(idx('h_ovr88'), idx('v_ovr98'))],
-    ['매우 어려움',ACHIEVE.slice(idx('v_ovr98'), idx('z_perfect'))],
-    ['불가능에 가까움', ACHIEVE.slice(idx('z_perfect'))]
-  ].filter(g=>g[1].length);
+  const grp=[['시작',ACHIEVE.slice(0,6)],['성장',ACHIEVE.slice(6,14)],['성적',ACHIEVE.slice(14,26)],
+             ['영예',ACHIEVE.slice(26,38)],['굴곡',ACHIEVE.slice(38,47)],
+             ['기록실',ACHIEVE.slice(47,52)],['유물',ACHIEVE.slice(52,58)],
+             ['도전 과제',ACHIEVE.slice(58)]];
   document.getElementById('ach-body').innerHTML=`
     <p class="eyebrow">${done.length} / ${ACHIEVE.length} 달성 · ${meta().tp||0} TP</p>
     <h2 class="title">업적</h2>

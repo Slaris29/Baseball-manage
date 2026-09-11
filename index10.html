@@ -1189,40 +1189,23 @@ function toScout(){
     salary:0, bonus:0, seasons:[], awards:[], champs:0, natl:0,
     draftRound:null, draftPick:null, college:0, retired:false, growthPts:0
   };
+  P.potential = clamp(ri(43,72) + GROWTH[P.gtype].pot + (meta().potBonus||0), 36, 94);
   P.__candRR = meta().candRerolls||0;
   drawCands(); renderScout(); go('s-scout');
 }
 function renderScout(){
   document.getElementById('sc-name').textContent=P.name;
   document.getElementById('sc-sub').textContent=`${P.pos} · 18세`;
-  const peek=flag('potPeek');
   document.getElementById('cand-list').innerHTML=cands.map((c,i)=>
     `<button class="cand" aria-pressed="${i===candSel}" onclick="selCand(${i})">
       <span style="display:block;font-size:10.5px;font-weight:800;color:${c.tal.c};margin-bottom:2px">${c.tal.n}</span>
-      <b>${c.arche}</b><u>${c.desc}</u>
-      ${peek?`<span style="display:block;margin-top:3px;font-size:10.5px;color:var(--blue);font-weight:700">
-        잠재 ${Math.max(36,c.potRoll-3)}~${Math.min(96,c.potRoll+4)} · ${GROWTH[c.gtype].n}</span>`:''}
-    </button>`).join('');
+      <b>${c.arche}</b><u>${c.desc}</u></button>`).join('');
   const keys=P.type==='hitter'?H_KEYS:P_KEYS, c=cands[candSel];
   document.querySelector('#s-scout .sheet .hd').innerHTML=
     `측정표 <span style="font-weight:800;color:${c.tal.c}">합계 ${c.tal.sum}</span>`;
   document.getElementById('cand-bars').innerHTML=
     (c.tal.d?`<div class="note" style="border-color:${c.tal.c}">
        <b style="color:${c.tal.c}">${c.tal.n}</b> — ${c.tal.d}</div>`:'')
-    + (peek?`<div class="sheet" style="margin:0 0 10px"><div class="bd">
-        <div class="cells c3">
-          <div class="cell"><u>추정 잠재력</u><b class="num">${Math.max(36,c.potRoll-3)}~${Math.min(96,c.potRoll+4)}</b></div>
-          <div class="cell"><u>성장 유형</u><b class="num" style="font-size:14px">${GROWTH[c.gtype].n}</b></div>
-          <div class="cell"><u>현재 합계</u><b class="num">${c.tal.sum}</b></div>
-        </div>
-        <div style="font-size:12px;color:var(--ink-soft);margin-top:6px">
-          ${GROWTH[c.gtype].n==='대기만성형'?'초반이 더디니 인내가 필요합니다.'
-           :GROWTH[c.gtype].n==='조기 완성형'?'일찍 완성되고 일찍 저뭅니다.'
-           :GROWTH[c.gtype].n==='급등 급락형'?'정점은 높지만 오래가지 않습니다.'
-           :GROWTH[c.gtype].n==='노쇠 저항형'?'천천히 크고 오래 갑니다.'
-           :GROWTH[c.gtype].n==='각성형'?'어느 해 갑자기 트일 수 있습니다.'
-           :'꾸준히 자라는 편입니다.'}</div>
-      </div></div>`:'')
     + keys.map(([k,l])=>{
       const v=c.stats[k], pct=clamp(v/22*100,3,100);
       return `<div class="bar"><em>${l}</em><b class="num">${v.toFixed(1)}</b>
@@ -1240,8 +1223,6 @@ function updateCandRR(){
 function confirmCand(){
   const c=cands[candSel];
   P.arche=c.arche; P.stats={...c.stats};
-  P.gtype = c.gtype || P.gtype;
-  P.potential = c.potRoll || rollPotential();
   if(flag('focusStart')){
     const main=(P.type==='hitter'?ARCH_H:ARCH_P).find(a=>a.n===c.arche);
     const ks=(P.type==='hitter'?H_KEYS:P_KEYS).map(k=>k[0]);
@@ -1324,7 +1305,6 @@ function renderProfile(){
       <dt>종합</dt><dd class="num">${P.ovr}</dd>
     </dl>
   </div>
-  ${potPeekCard()}
   <div class="fan"><b>스카우트 메모</b>${pick(HINTS[P.gtype])}</div>
   <div class="note">몸이 언제 완성될지는 아무도 모릅니다. 시즌을 치르며 드러납니다.</div>`;
 }
@@ -3289,13 +3269,7 @@ function rerollCands(){
 }
 function drawCands(){
   cands=[]; const used=[];
-  for(let i=0;i<3;i++){
-    const c=makeCand(P.type,used); used.push(c.arche);
-    // 후보 단계에서 이미 정해둔다 — 진단 방침이 있으면 고르기 전에 볼 수 있다
-    c.gtype = pickGrowthType();
-    c.potRoll = rollPotential(c.gtype);
-    cands.push(c);
-  }
+  for(let i=0;i<3;i++){ const c=makeCand(P.type,used); used.push(c.arche); cands.push(c) }
   candSel=0;
 }
 function takeGrow(i){
@@ -5395,53 +5369,6 @@ function openInfo(){
   renderInfo(infoTab);
 }
 function closeInfo(){ if(infoBack) go(infoBack.id); else { go('s-home'); renderHome(); } }
-/* 잠재력은 보상만큼 일괄로 오르지 않는다.
-   저점이 조금 올라가고, 높은 값이 나올 기회가 늘어난다.
-   같은 보상이라도 판마다 결과가 다르다. */
-function rollPotential(gtype){
-  const b=meta().potBonus||0;
-  const floorUp = Math.round(b*0.45);          // 바닥이 조금 올라가고
-  const tries   = 1 + Math.floor(b/3.5);       // 좋은 쪽이 나올 기회가 늘고
-  const lo=43+floorUp, hi=72+Math.round(b*0.85);   // 천장도 함께 열린다
-  let best=0;
-  for(let i=0;i<tries;i++) best=Math.max(best, ri(lo,hi));
-  // 드물게 기대를 넘는 재목이 나온다
-  if(Math.random() < 0.04 + b*0.004) best += ri(4,11);
-  const g=GROWTH[gtype||P.gtype];
-  return clamp(best + (g?g.pot:0), 36, 96);
-}
-
-/* 잠재력 진단 — 앞으로 얼마나 더 클 수 있는지 가늠한다 */
-function potPeekCard(){
-  if(!flag('potPeek') || !P) return '';
-  const pot=P.potential, now=P.ovr, gap=pot-now;
-  const lo=Math.max(36, Math.round(pot)-3), hi=Math.min(99, Math.round(pot)+4);
-  const g=GROWTH[P.gtype];
-  let left=0;
-  for(let a=P.age+1; a<=38; a++){
-    const up=interp(g.curve,a)*1.9, down=interp(g.decay,a);
-    left += Math.max(0, up-down)*clamp(0.25+(pot-(now+left))/50, 0, 1.4);
-  }
-  const peak=Math.round(now+Math.max(0,left));
-  const verdict = gap>=12 ? '아직 한참 남았습니다'
-    : gap>=6 ? '더 클 여지가 있습니다'
-    : gap>=1 ? '거의 다 왔습니다'
-    : '이미 천장을 넘어섰습니다';
-  return `<div class="sheet"><div class="hd">잠재력 진단</div><div class="bd">
-    <div class="cells c3">
-      <div class="cell"><u>현재</u><b class="num">${now}</b></div>
-      <div class="cell"><u>추정 상한</u><b class="num">${lo}~${hi}</b></div>
-      <div class="cell"><u>남은 여력</u><b class="num" style="color:${gap>0?'var(--blue)':'var(--red)'}">${gap>0?'+':''}${Math.round(gap)}</b></div>
-    </div>
-    <div class="bar" style="margin-top:9px"><em>도달률</em>
-      <b class="num">${Math.round(clamp(now/Math.max(pot,1),0,1.2)*100)}%</b>
-      <span class="track"><i style="width:${clamp(now/Math.max(pot,now)*100,3,100)}%"></i></span></div>
-    <div class="stub"><b>성장 유형</b><span>${GROWTH[P.gtype].n}</span></div>
-    <div class="stub"><b>은퇴 무렵 예상</b><span class="num">${peak}</span></div>
-    <div style="font-size:12.5px;color:var(--ink-soft);margin-top:6px">
-      ${verdict}. 추정치이며 훈련과 유물에 따라 달라집니다.</div>
-  </div></div>`;
-}
 function renderInfo(tab){
   if(!P) return;
   infoTab=tab||'player';
@@ -5492,7 +5419,10 @@ function renderInfo(tab){
           <span>${t.cat}</span></div>`).join('')}</div></div>`:''}
       ${relicPanel()}
       ${rivalCard()}
-      ${potPeekCard()}
+      ${flag('potPeek')?`<div class="sheet"><div class="hd">잠재력 진단</div><div class="bd">
+        <div class="stub"><b>추정 범위</b><span class="num">${Math.round(P.potential)-3} ~ ${Math.round(P.potential)+4}</span></div>
+        <div style="font-size:12px;color:var(--ink-soft);margin-top:5px">정확한 값은 아닙니다.</div>
+      </div></div>`:''}
       <div class="fan"><b>스카우트 메모</b>${pick(HINTS[P.gtype])}</div>`;
   }
 

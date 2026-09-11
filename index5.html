@@ -219,7 +219,7 @@ table.rec tr.me td{background:#F2EFDF;font-weight:700}
   </div>
   <div class="row2" style="margin-top:10px">
     <button class="btn" onclick="renderChallenge()">도전</button>
-    <button class="btn" onclick="renderPerks()">육성 방침 <span class="num" id="home-tp"></span></button>
+    <button class="btn" onclick="renderPerks()">특성 <span class="num" id="home-tp"></span></button>
   </div>
   <div class="row2" style="margin-top:9px">
     <button class="btn ghost" onclick="renderAch()">업적 <span class="num" id="home-ach"></span></button>
@@ -394,7 +394,7 @@ table.rec tr.me td{background:#F2EFDF;font-weight:700}
 <!-- ══════════ 특성 ══════════ -->
 <section class="screen" id="s-perk">
   <div class="slate"><button class="home" onclick="go('s-home');renderHome()">←</button>
-    <div><div class="nm">육성 방침</div><div class="sub">포인트 분배</div></div></div>
+    <div><div class="nm">특성</div><div class="sub">포인트 분배</div></div></div>
   <div id="perk-body"></div>
 </section>
 
@@ -843,7 +843,7 @@ function fmtMoney(m){ // 만원 단위
    결과를 직접 주지 않는다. 확률과 폭만 넓힌다.
    ═══════════════════════════════════════════════════════════ */
 const KEY_META='bp_career_meta';
-const META_BASE={tp:0, ach:[], perks:{}, flags:{}, stats:{}, resets:0, lateGrow:0, relicSlot:0, relicLuck:0, relicDex:[],
+const META_BASE={tp:0, ach:[], perks:{}, flags:{}, stats:{}, resets:0, relicSlot:0, relicLuck:0, relicDex:[],
   psMod:0, goalMod:0, hlMod:0, rivalMod:0, releaseCut:0, marketMod:0, healMod:0, injMod:0, natlMod:0, awardMod:0, trustStart:0,
   draftBoost:0, slotBonus:0, legacyMul:0, collegeExtra:0,
   cleared:[], cards:3, rerolls:0, candRerolls:0, gradeLevel:0, potBonus:0, growMul:1,
@@ -2182,10 +2182,8 @@ function growthPoints(s,amateur){
   let fw = tHas('formTight')? .12 : tHas('formWide')? .40 : .26;
   fw *= (1-relA('formTight')); if(relHas('formWide')) fw*=1.5;
   P.form = clamp((P.form||1) * rnd(1-fw,1+fw*1.08), tHas('formTight')?.70:.42, tHas('formWide')?2.2:1.95);
-  let curveMul = 1;
-  if(P.age>=30) curveMul += (meta().lateGrow||0);      // 서른 이후 성장 곡선 보정
-  let base = rnd(1.46,2.42) * (meta().growMul||1)
-    * interp(GROWTH[P.gtype].curve, P.age) * curveMul * P.form;
+  const curveAge = (flag('lateBloom') && P.age>29) ? 29 : P.age;
+  let base = rnd(1.46,2.42) * (meta().growMul||1) * interp(GROWTH[P.gtype].curve, curveAge) * P.form;
   base = relE('growMul', base);
   if(P.age<=25) base = relE('growYoung', base);
   if(P.age>=26) base = relE('growOld', base);
@@ -4616,7 +4614,7 @@ function doRetire(reason){
 }
 function announceAch(gain, kept){
   const got=window.__achGot||[]; window.__achGot=null;
-  const lines=[`육성 포인트 ${gain} TP 획득${kept?' · 기록실 등재':''}`];
+  const lines=[`특성 포인트 ${gain} TP 획득${kept?' · 기록실 등재':''}`];
   got.forEach(a=>lines.push(`업적 「${a.n}」 +${a.tp} TP · ${a.r}`));
   alert(lines.join('\n'));
 }
@@ -5456,8 +5454,8 @@ const PERKS=[
  {id:'p_rr',  br:'육성', n:'시행착오',      max:3, cost:8, inc:{rerolls:1},     d:'훈련 카드 리롤 +1'},
  {id:'p_focus',br:'육성',n:'집중 육성',     max:1, cost:19, flag:'focusStart',
    d:'시작 시 주 특성 +2.5, 나머지 합 −2.0 — 뾰족한 선수로 출발한다', req:'p_pot'},
- {id:'p_late',br:'육성', n:'장기 육성',      max:2, cost:10, inc:{lateGrow:0.16},
-   d:'서른 이후 성장이 조금 더 오래 간다 (성장 곡선 +16%)', req:'p_grow'},
+ {id:'p_late',br:'육성', n:'만개',          max:1, cost:22, flag:'lateBloom',
+   d:'29세 이후 성장 곡선이 꺾이지 않는다', req:'p_grow'},
 
  // ── 안목 ──
  {id:'p_cand',br:'안목', n:'스카우트망',    max:3, cost:8, inc:{candRerolls:1}, d:'생성 시 후보 다시 뽑기 +1'},
@@ -5483,7 +5481,7 @@ const PERKS=[
  {id:'p_draft',br:'유산', n:'이름값',       max:2, cost:14, inc:{draftBoost:1},
    d:'드래프트 지명 순번이 앞당겨진다'},
  {id:'p_slot',br:'유산',  n:'다재다능',     max:1, cost:24, inc:{slotBonus:1},
-   d:'선수가 지닐 수 있는 특성 칸 +1 (4 → 5)'},
+   d:'선수 특성 슬롯 +1 (4 → 5)'},
  {id:'p_legacy',br:'유산',n:'기록의 무게',  max:2, cost:17, inc:{legacyMul:0.08},
    d:'Legacy Score +8% — 도전 전력이 올라간다'},
  {id:'p_second',br:'유산',n:'재수',         max:1, cost:14, inc:{collegeExtra:1},
@@ -5562,8 +5560,8 @@ function perkRefund(){
 }
 function resetPerks(){
   const r=perkRefund();
-  if(!r.lv){ alert('아직 적용한 방침이 없습니다.'); return; }
-  if(!confirm(`방침 ${r.lv}개를 모두 되돌리고 ${r.spent} TP를 전부 돌려받습니다.`)) return;
+  if(!r.lv){ alert('아직 찍은 특성이 없습니다.'); return; }
+  if(!confirm(`특성 ${r.lv}개를 모두 되돌리고 ${r.spent} TP를 전부 돌려받습니다.`)) return;
   const m=meta();
   // 특성으로 올린 수치만 걷어낸다 — 업적·도전으로 받은 것은 그대로 둔다
   for(const id in (m.perks||{})){
@@ -5585,15 +5583,14 @@ function renderPerks(){
   const m=meta();
   const brs=['육성','안목','커리어','유산','유물','승부','생존'];
   document.getElementById('perk-body').innerHTML=`
-    <p class="eyebrow">육성 포인트 ${m.tp||0} TP</p>
-    <h2 class="title">육성 방침</h2>
-    <p class="lede">업적과 도전으로 얻은 포인트를 구단 운영 방향에 씁니다.
-      선수 개인이 얻는 <b>특성</b>과는 다릅니다.</p>
+    <p class="eyebrow">특성 포인트 ${m.tp||0} TP</p>
+    <h2 class="title">특성</h2>
+    <p class="lede">업적과 도전으로 얻은 포인트를 원하는 방향에 씁니다.</p>
     ${(()=>{ const r=perkRefund();
       return r.lv? `<div class="sheet"><div class="bd"
         style="display:flex;align-items:center;gap:10px">
         <div style="flex:1">
-          <b>적용 중인 방침 ${r.lv}개</b>
+          <b>찍은 특성 ${r.lv}개</b>
           <div style="font-size:11.5px;color:var(--ink-soft)">
             ${r.spent} TP를 전부 돌려받습니다 · 언제든 다시 짤 수 있습니다</div></div>
         <button class="chip" style="flex:none;color:var(--red);border-color:var(--red)"
@@ -5821,7 +5818,7 @@ function renderData(){
       <div class="cells c3">
         <div class="cell"><u>진행 중</u><b class="num" style="font-size:15px">${cur?`${cur.name} ${cur.age}세`:'없음'}</b></div>
         <div class="cell"><u>기록실</u><b class="num">${h.length}명</b></div>
-        <div class="cell"><u>육성 포인트</u><b class="num">${m.tp||0}</b></div>
+        <div class="cell"><u>특성 포인트</u><b class="num">${m.tp||0}</b></div>
       </div>
       <div class="cells c3" style="margin-top:8px">
         <div class="cell"><u>업적</u><b class="num">${(m.ach||[]).length}/${ACHIEVE.length}</b></div>

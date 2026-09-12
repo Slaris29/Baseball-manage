@@ -3199,15 +3199,11 @@ function maybeEvent(next){
 /* 같은 선택도 매번 같은 결과가 되지는 않는다.
    결과의 크기와 방향에 폭을 주고, 드물게 판이 뒤집히는 일도 생긴다. */
 const OUT_TIER=[
-  {n:'뜻대로 됐다',   c:'var(--gold)',     m:1.60, p:8,
-   d:'기대보다 훨씬 잘 풀렸습니다.', bad:'그래도 피해는 최소로 막았습니다.'},
-  {n:'잘 풀렸다',     c:'var(--blue)',     m:1.22, p:20,
-   d:'생각한 대로 됐습니다.',       bad:'생각보다는 덜 아팠습니다.'},
-  {n:'그럭저럭',      c:'var(--ink)',      m:1.00, p:46, d:'', bad:''},
-  {n:'시원치 않았다', c:'var(--ink-soft)', m:0.55, p:18,
-   d:'해보긴 했는데 남은 게 적습니다.', bad:'생각보다 여파가 컸습니다.'},
-  {n:'어긋났다',      c:'var(--red)',      m:-0.35,p:8,
-   d:'하려던 것과 반대로 흘렀습니다.', bad:'최악으로 번졌습니다.'}
+  {n:'뜻대로 됐다',   c:'var(--gold)',     m:1.60, p:8,  d:'기대보다 훨씬 잘 풀렸습니다.'},
+  {n:'잘 풀렸다',     c:'var(--blue)',     m:1.22, p:20, d:'생각한 대로 됐습니다.'},
+  {n:'그럭저럭',      c:'var(--ink)',      m:1.00, p:46, d:''},
+  {n:'시원치 않았다', c:'var(--ink-soft)', m:0.55, p:18, d:'해보긴 했는데 남은 게 적습니다.'},
+  {n:'어긋났다',      c:'var(--red)',      m:-0.35,p:8,  d:'하려던 것과 반대로 흘렀습니다.'}
 ];
 function rollOutcome(risk){
   // 안정적인 선택은 가운데로, 도박은 양끝으로 벌어진다
@@ -3231,31 +3227,15 @@ function chooseEvent(ei,oi){
              : /안정|회복|관리|유지/.test(hint) ? 'safe' : 'normal';
   const ti=rollOutcome(risk), T=OUT_TIER[ti];
   const r=Object.assign({}, base);
-
-  /* 선택지 안에서 이미 잘 풀렸는지 어긋났는지가 갈린 경우가 있다.
-     그럴 때 바깥 판정이 "뜻대로 됐다"면서 나쁜 결과를 키우면 앞뒤가 맞지 않는다.
-     그래서 결과의 좋고 나쁨을 먼저 읽고, 판정은 그 방향으로만 작용한다. */
-  const sign = (r.gp||0) + (r.rep||0)*0.12 + (r.trust||0)*0.12
-             - (r.inj||0)*0.12 - (r.miss?3:0)
-             + ((r.form||1)-1)*6 + (r.pot||0)
-             + (r.stat? Object.values(r.stat).reduce((a,b)=>a+b,0) : 0);
-  const goodOutcome = sign >= 0;
-  // 이미 나쁜 결과라면 판정을 뒤집어 읽는다 — 좋은 판정일수록 피해가 작아진다
-  const eff = goodOutcome ? T.m
-            : (T.m>=1 ? 1/T.m : T.m<0 ? 1.45 : 1+(1-T.m)*0.9);
-  /* 판정 이름은 그대로 쓴다. "뜻대로 됐다"는 나쁜 상황에서도
-     '그나마 잘 넘겼다'는 뜻이 되도록 eff가 피해를 줄여 준다. */
-  const label = T;
-
-  ['gp','rep','trust','card','pot'].forEach(k=>{ if(r[k]) r[k]=Math.round(r[k]*eff*10)/10; });
-  if(r.inj) r.inj = Math.round(r.inj*(goodOutcome ? (T.m>1?1:Math.max(T.m,0.4)) : eff)*10)/10;
-  if(r.stat){ const st={}; for(const k in r.stat) st[k]=Math.round(r.stat[k]*eff*10)/10; r.stat=st; }
-  if(r.form) r.form = 1+(r.form-1)*(goodOutcome? Math.max(T.m,-0.5) : eff);
-  if(r.salary) r.salary = 1+(r.salary-1)*Math.max(eff,0);
-  if(goodOutcome && T.m<0){ r.miss=null; }        // 좋은 일에 결장까지 겹치진 않는다
-  if(goodOutcome && ti===0 && !r.relic) r.relic=0.10;
-  if(goodOutcome && ti===0 && !r.trait && Math.random()<0.12) r.trait=true;
-  const T2=label;
+  // 수치에 배수를 먹인다. '어긋났다'면 이득이 손해로 뒤집힌다
+  ['gp','rep','trust','card','pot'].forEach(k=>{ if(r[k]) r[k]=Math.round(r[k]*T.m*10)/10; });
+  if(r.inj) r.inj = T.m<0 ? Math.abs(r.inj)*1.3 : Math.round(r.inj*(T.m>1?1:T.m)*10)/10;
+  if(r.stat){ const st={}; for(const k in r.stat) st[k]=Math.round(r.stat[k]*T.m*10)/10; r.stat=st; }
+  if(r.form) r.form = 1+(r.form-1)*Math.max(T.m,-0.5);
+  if(r.salary) r.salary = 1+(r.salary-1)*Math.max(T.m,0);
+  if(T.m<0){ r.miss=null; }                       // 결장까지 겹치면 가혹하다
+  if(ti===0 && !r.relic) r.relic=0.10;            // 최상 결과엔 드물게 유물
+  if(ti===0 && !r.trait && Math.random()<0.12) r.trait=true;
   const extra=[];
 
   // 한 번의 이벤트가 몰아주는 성장에는 한계를 둔다
@@ -3306,9 +3286,9 @@ function chooseEvent(ei,oi){
     : `(window.__evNext||renderOffseason)()`;
   document.getElementById('ev-body').innerHTML=`
     <p class="eyebrow">결과</p>
-    <h2 class="title" style="color:${T2.c}">${e.t}</h2>
-    <p class="lede" style="color:${T2.c};font-weight:700">${T2.n}${goodOutcome?'':' <span style="font-weight:400;font-size:12.5px;color:var(--ink-soft)">— 좋지 않은 일이었습니다</span>'}</p>
-    <div class="note ${(!goodOutcome||r.inj>0||r.miss)?'red':''}">${r.msg}${(goodOutcome?T2.d:T2.bad)?'<br>'+(goodOutcome?T2.d:T2.bad):''}</div>
+    <h2 class="title" style="color:${T.c}">${e.t}</h2>
+    <p class="lede" style="color:${T.c};font-weight:700">${T.n}</p>
+    <div class="note ${(r.inj>0||r.miss||T.m<0)?'red':''}">${r.msg}${T.d?'<br>'+T.d:''}</div>
     <div class="sheet"><div class="bd">
       ${r.gp?`<div class="stub"><b>성장 포인트</b><span class="num">${r.gp>0?'+':''}${r.gp}</span></div>`:''}
       ${r.inj?`<div class="stub"><b>부상 위험</b><span class="num">${r.inj>0?'+':''}${r.inj}</span></div>`:''}
@@ -3385,28 +3365,19 @@ function takeGrow(i){
   Object.entries(raw).forEach(([k,v])=>{
     if(Math.abs(v)>=0.05){ gained[k]=Math.round(v*10)/10; P.stats[k]=Math.round((P.stats[k]+gained[k])*10)/10; }
   });
-  /* 대가는 판정이 좋을수록 가벼워진다.
-     대성공인데 몸이 더 상하거나 더 많이 내주는 건 말이 안 된다. */
-  const costMul = ti===0 ? 0.45 : ti===1 ? 0.70 : ti===2 ? 1.00 : ti===3 ? 1.25 : 1.60;
-  const gainMul = ti===0 ? 1.55 : ti===1 ? 1.25 : ti===2 ? 1.00 : ti===3 ? 0.55 : 0.30;
-
+  // 대가가 붙는 카드들
   if(c.trade && ti<3){
     const [give]=c.trade;
-    const d=Math.round(Math.min(P.stats[give]*0.16, pool*0.55)*costMul*10)/10;
+    const d=Math.round(Math.min(P.stats[give]*0.16, pool*0.55)*10)/10;
     if(d>=0.1){ P.stats[give]=Math.max(1,Math.round((P.stats[give]-d)*10)/10);
       gained[give]=Math.round(((gained[give]||0)-d)*10)/10; }
   }
-  // 회복은 이득이므로 판정이 좋을수록 커진다
-  if(c.heal)  P.injury=clamp(P.injury-Math.round(c.heal*gainMul),0,60);
-  // 부상은 대가이므로 판정이 좋을수록 작아진다
-  if(c.inj)   P.injury=clamp(P.injury+Math.round(c.inj*costMul),0,60);
-  if(c.trust) P.trust=clamp(P.trust+Math.round(c.trust*gainMul),0,100);
-  if(c.form){
-    const f = c.form>1 ? 1+(c.form-1)*gainMul : 1-(1-c.form)*costMul;
-    P.form=clamp((P.form||1)*f,.45,2.0);
-  }
+  if(c.heal)  P.injury=clamp(P.injury-c.heal-(ti===0?6:0),0,60);
+  if(c.inj)   P.injury=clamp(P.injury+(ti===4?c.inj*1.6:c.inj),0,60);
+  if(c.trust) P.trust=clamp(P.trust+(ti===0?c.trust*1.5:c.trust),0,100);
+  if(c.form)  P.form=clamp((P.form||1)*c.form,.45,2.0);
   if(c.potUp && ti<3){
-    const up=Math.max(1, Math.round(c.potUp*gainMul));
+    const up=Math.round(c.potUp*(ti===0?1.6:1));
     P.potential=clamp(P.potential+up, 36, 99); P.__potUp=up;
   }
   if(T.form) P.form=clamp((P.form||1)*T.form,.45,2.0);
@@ -3426,10 +3397,8 @@ function takeGrow(i){
         || '<div class="empty">변화가 거의 없었습니다.</div>'}
     </div></div>
     ${__pu?`<div class="note" style="border-color:var(--gold)"><b>잠재력 +${__pu}</b> — 도달할 수 있는 천장이 올라갔습니다.</div>`:''}
-    ${c.heal?`<div class="note">몸을 추슬렀습니다. 부상 위험이 ${ti<=1?'크게 ':''}줄었습니다.</div>`:''}
-    ${c.inj?`<div class="note ${ti<=1?'':'red'}">${ti<=1
-        ? '무리한 훈련이었지만 몸은 잘 버텼습니다.'
-        : '무리한 만큼 몸에 부담이 쌓였습니다.'}</div>`:''}
+    ${c.heal?`<div class="note">몸을 추슬렀습니다. 부상 위험이 줄었습니다.</div>`:''}
+    ${c.inj?`<div class="note red">무리한 만큼 몸에 부담이 쌓였습니다.</div>`:''}
     ${c.trust?`<div class="note">구단이 태도를 좋게 봤습니다.</div>`:''}
     ${ti===3?'<div class="note red">겨울을 헛되이 보냈습니다. 오히려 감이 떨어졌습니다.</div>':''}
     ${ti===4?'<div class="note red">무리한 훈련이 몸을 상하게 했습니다. 흐름도 나빠졌습니다.</div>':''}
@@ -3468,7 +3437,7 @@ function offerTraits(next){
   go('s-trait');
 }
 const EFFLBL={hr:'홈런',avg:'타율',obp:'출루',rbi:'타점',run:'득점',sb:'도루',grow:'성장',
-  avgMul:'타율',obpMul:'출루',eraMul:'평균자책',k9Mul:'탈삼진',bb9Mul:'볼넷 허용',h9Mul:'피안타',
+  avgMul:'타율',obpMul:'출루',eraMul:'평균자책',k9Mul:'탈삼진',bb9Mul:'제구',h9Mul:'피안타',
   promo:'1군 경쟁력',posFit:'수비 적합',natl:'국대 선발',salary:'연봉',faOffer:'FA 조건',
   awardOdds:'수상 경쟁',cardUp:'훈련 기회',heal:'회복',
   growBad:'부진 시 성장',cap:'한계 돌파',ageShift:'노화 지연',inj:'부상',games:'출장',
@@ -4187,7 +4156,7 @@ function relicChip(r, extra){
     <span>${r.d}<br><span style="color:var(--red);font-size:11.5px">${relEffText(r)}</span>${extra||''}</span>`;
 }
 const REL_LBL={growMul:'성장',injMul:'부상',ipMul:'이닝',gamesMul:'출장',hrMul:'홈런',
-  avgMul:'타율',obpMul:'출루',eraMul:'평균자책',k9Mul:'탈삼진',bb9Mul:'볼넷 허용',h9Mul:'피안타',avg:'타율',obp:'출루',era:'평균자책',k9:'탈삼진',repMul:'평판',trustMul:'팀 신뢰',
+  avgMul:'타율',obpMul:'출루',eraMul:'평균자책',k9Mul:'탈삼진',bb9Mul:'제구',h9Mul:'피안타',avg:'타율',obp:'출루',era:'평균자책',k9:'탈삼진',repMul:'평판',trustMul:'팀 신뢰',
   awardMul:'수상 경쟁',natlMul:'국대 선발',champOdds:'우승 확률',salaryMul:'연봉',
   promoAdd:'1군 경쟁력',healAdd:'회복',injAdd:'부상 누적',ageShift:'노화 지연',
   decayMul:'노화 속도',growYoung:'젊을 때 성장',growOld:'서른 이후 성장',growBad:'부진 후 반등',
@@ -4458,13 +4427,8 @@ function chooseRival(i){
   const risk=/\?|부담|부상/.test(hint)?'gamble':/안정|회복/.test(hint)?'safe':'normal';
   const ti=rollOutcome(risk), T=OUT_TIER[ti];
   const r=Object.assign({}, base);
-  const sign=(r.gp||0)+(r.rep||0)*0.12+(r.trust||0)*0.12-(r.inj||0)*0.12+((r.form||1)-1)*6;
-  const goodOutcome = sign>=0;
-  const eff = goodOutcome ? T.m : (T.m>=1 ? 1/T.m : T.m<0 ? 1.45 : 1+(1-T.m)*0.9);
-  const T2 = T;
-  ['gp','rep','trust'].forEach(k=>{ if(r[k]) r[k]=Math.round(r[k]*eff*10)/10; });
-  if(r.inj) r.inj = Math.round(r.inj*(goodOutcome?(T.m>1?1:Math.max(T.m,0.4)):eff)*10)/10;
-  if(r.form) r.form = 1+(r.form-1)*(goodOutcome?Math.max(T.m,-0.5):eff);
+  ['gp','rep','trust'].forEach(k=>{ if(r[k]) r[k]=Math.round(r[k]*T.m*10)/10; });
+  if(r.inj) r.inj = T.m<0 ? Math.abs(r.inj)*1.3 : Math.round(r.inj*(T.m>1?1:T.m)*10)/10;
   if(r.gp)   P.growthPts=Math.max(0,Math.round(((P.growthPts||0)+r.gp)*10)/10);
   if(r.inj)  P.injury=clamp(P.injury+r.inj,0,60);
   if(r.rep)  P.rep=clamp(P.rep+r.rep,0,100);
@@ -4472,9 +4436,9 @@ function chooseRival(i){
   save();
   document.getElementById('ev-body').innerHTML=`
     <p class="eyebrow">결과</p>
-    <h2 class="title" style="color:${T2.c}">${e.t}</h2>
-    <p class="lede" style="color:${T2.c};font-weight:700">${T2.n}</p>
-    <div class="note ${goodOutcome?'':'red'}">${r.msg}${(goodOutcome?T2.d:T2.bad)?'<br>'+(goodOutcome?T2.d:T2.bad):''}</div>
+    <h2 class="title" style="color:${T.c}">${e.t}</h2>
+    <p class="lede" style="color:${T.c};font-weight:700">${T.n}</p>
+    <div class="note ${T.m<0?'red':''}">${r.msg}${T.d?'<br>'+T.d:''}</div>
     <div class="sheet"><div class="bd">
       ${r.gp?`<div class="stub"><b>성장 포인트</b><span class="num">${r.gp>0?'+':''}${r.gp}</span></div>`:''}
       ${r.inj?`<div class="stub"><b>부상 위험</b><span class="num">${r.inj>0?'+':''}${r.inj}</span></div>`:''}

@@ -3437,34 +3437,20 @@ function offerTraits(next){
   go('s-trait');
 }
 const EFFLBL={hr:'홈런',avg:'타율',obp:'출루',rbi:'타점',run:'득점',sb:'도루',grow:'성장',
-  avgMul:'타율',obpMul:'출루',eraMul:'평균자책',k9Mul:'탈삼진',bb9Mul:'제구',h9Mul:'피안타',
   promo:'1군 경쟁력',posFit:'수비 적합',natl:'국대 선발',salary:'연봉',faOffer:'FA 조건',
   awardOdds:'수상 경쟁',cardUp:'훈련 기회',heal:'회복',
   growBad:'부진 시 성장',cap:'한계 돌파',ageShift:'노화 지연',inj:'부상',games:'출장',
   k9:'탈삼진',bb9:'볼넷',h9:'피안타',era:'평균자책',ip:'이닝',trust:'팀 신뢰',rep:'평판',
   champOdds:'우승 확률',formTight:'기복 축소',formWide:'기복 확대',growAge:'30세 이후 성장'};
-/* 배수가 아니라 더하는 값들 — 퍼센트로 쓰면 안 된다 */
-const ADDK=new Set(['ageShift','healAdd','injAdd','promoAdd','cardUp','k9','era','avg','obp',
-  'formTight','psBoost','titleStack','promo','posFit','heal','sb','bb9','h9']);
-/* 낮을수록 좋은 지표 — '좋아짐/나빠짐'을 뒤집어 보여준다 */
-const LOWER_GOOD=new Set(['eraMul','bb9Mul','h9Mul','inj','injMul','era','bb9','h9','decayMul','subGrow']);
-function pctText(k, v){
-  const d=Math.round((v-1)*100);
-  if(d===0) return null;
-  const good = LOWER_GOOD.has(k) ? d<0 : d>0;
-  const arrow = d>0 ? '↑' : '↓';
-  return `${EFFLBL[k]||REL_LBL[k]||k} ${Math.abs(d)}% ${arrow}`;
-}
 function effText(t){
   return Object.entries(t.e).map(([k,v])=>{
     const l=EFFLBL[k]||k;
     if(k==='ageShift') return `${l} ${v}년`;
     if(k==='formTight'||k==='formWide'||k==='growAge'||k==='heal') return l;
     if(k==='promo'||k==='posFit') return `${l} +${v}`;
-    if(k==='cap') return `${l}`;
-    if(v>0.2&&v<3.5&&v!==1) return pctText(k,v) || `${l} 유지`;
+    if(v>=0.5&&v<=2.5&&v!==1) return `${l} ×${v}`;
     return `${l} ${v>0?'+':''}${v}`;
-  }).filter(Boolean).join(' · ');
+  }).join(' · ');
 }
 function takeTrait(i){
   P.traits=P.traits||[]; P.traits.push(window.__trOffers[i]); save();
@@ -4168,15 +4154,6 @@ function relEffText(r){
     const l=REL_LBL[k]||k;
     if(k==='formWide'||k==='psBoost'||k==='titleStack') return l;
     if(k==='ageShift') return `${l} ${v>0?'+':''}${v}년`;
-    const MULK=/Mul$|Grow$|^champOdds$|^decayMul$/;
-    if(MULK.test(k) || (typeof v==='number' && v>0.2 && v<3.5 && v!==1 && !ADDK.has(k))){
-      const t=pctText(k,v); if(t) return t;
-    }
-    if(ADDK.has(k)){
-      const a=Math.round(v*10)/10;
-      if(Math.abs(a)<1) return `${l} ${a>0?'조금 오름':'조금 내림'}`;
-      return `${l} ${a>0?'+':''}${Math.round(a)}`;
-    }
     if(k==='avg'||k==='obp'||k==='era') return `${l} ${v>0?'+':''}${v.toFixed(3)}`;
     if(k==='k9'||k==='healAdd'||k==='injAdd'||k==='promoAdd'||k==='formTight'||k==='cardUp')
       return `${l} ${v>0?'+':''}${v}`;
